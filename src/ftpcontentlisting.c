@@ -80,7 +80,7 @@ ftp_content_listing *ftp_i_applyclfilter(ftp_content_listing *c, int *items_coun
 
 ftp_file_type ftp_i_strtotype(char *str)
 {
-	strlower(str);
+	ftp_i_strtolower(str);
 	if (strcmp(str, "file") == 0)
 		return ft_file;
 	else if (strcmp(str, "dir") == 0)
@@ -104,7 +104,7 @@ ftp_bool ftp_i_applyfact(char *fact, ftp_file_facts *facts, unsigned long factle
 	strcpy(value, fact+p+1);
 	*(fact+p) = '\0';
 	strcpy(key, fact);
-	strlower(key);
+	ftp_i_strtolower(key);
 	unsigned long vlen = factlen - p - 1;
 	//interpret key
 	if (strcmp(key, "size") == 0) {

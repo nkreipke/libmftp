@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #define __USE_XOPEN
 #include <time.h>
 #include "ftpfunctions.h"
@@ -32,7 +33,7 @@
 #define TM_YEAR_OFFSET 1900
 
 
-long ftp_i_seconds_between(struct timeval t1, struct timeval t2)
+inline long ftp_i_seconds_between(struct timeval t1, struct timeval t2)
 {
 	if (t1.tv_sec > t2.tv_sec)
 		return t1.tv_sec - t2.tv_sec;
@@ -47,6 +48,12 @@ void ftp_i_memcpy(void *dest, const void *src, size_t offset, size_t len)
 	unsigned char *out = dest;
 	for (int i = 0; i < len; i++)
 		*(out+i) = *(in+offset+i);
+}
+
+inline void ftp_i_strtolower(char *str)
+{
+	for(char *c = str; *c; c++)
+		*c = tolower(*c);
 }
 
 /**

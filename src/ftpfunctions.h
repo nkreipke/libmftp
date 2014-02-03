@@ -40,12 +40,27 @@
 #define FTP_INTERNAL_SIGNAL_ERROR 1000
 
 #define ftp_i_last_signal_was_error(con) ftp_i_signal_is_error(con->last_signal)
-#define ftp_i_free(ptr) if (ptr != NULL) {free(ptr);ptr=NULL;}
 
-#define ftp_i_memcpy_nulltrm(dest,src,offset,len) ftp_i_memcpy(dest,src,offset,len);*(dest+len) = '\0';
-#define ftp_i_memcpy_nulltrm_malloc(dest,src,offset,len) do { dest = malloc(len + 1); ftp_i_memcpy_nulltrm(dest,src,offset,len); } while(0);
+#define ftp_i_free(ptr) if (ptr != NULL) { \
+	free(ptr); \
+	ptr=NULL; \
+}
 
-#define ftp_i_strcpy_malloc(dest,src) do { char *s = (src); dest = (char*)malloc(sizeof(char) * (strlen(s) + 1)); strcpy(dest,s); } while(0);
+#define ftp_i_memcpy_nulltrm(dest,src,offset,len) do { \
+	ftp_i_memcpy(dest,src,offset,len); \
+	*(dest+len) = '\0'; \
+} while(0)
+
+#define ftp_i_memcpy_nulltrm_malloc(dest,src,offset,len) do { \
+	dest = malloc(len + 1); \
+	ftp_i_memcpy_nulltrm(dest,src,offset,len); \
+} while(0)
+
+#define ftp_i_strcpy_malloc(dest,src) do { \
+	char *s = (src); \
+	dest = (char*)malloc(sizeof(char) * (strlen(s) + 1)); \
+	strcpy(dest,s); \
+} while(0)
 
 
 #ifdef FTP_TLS_ENABLED
@@ -59,11 +74,11 @@
 #define ftp_i_connection_set_error(c,err) c->error = err
 #define ftp_i_connection_is_down(c) (c->status == FTP_DOWN)
 
-
-//for testing:
+#if 0
+/* For Testing */
 #define ftp_i_printf_array(arr,len,format) printf("contents of "#arr":\n");for(int arr_i=0;arr_i<len;arr_i++){printf("%5i "format"\n",arr_i,*(arr+arr_i));}
 #define ftp_i_printf_char_values(arr,len) ftp_i_printf_array(arr,len,"%i");
-
+#endif
 
 /*
  * Iterating through a separated string.
@@ -77,8 +92,6 @@
 	ftp_i_free(ival); \
 } while (0);
 
-//lowercase:
-#define strlower(str) for(char*c=str;*c;c++) *c=tolower(*c);
 
 #define ANSWER_LEN 5000
 
@@ -155,9 +168,10 @@ void                  ftp_i_managed_buffer_free(ftp_i_managed_buffer *);
 
 //                    General
 void                  ftp_i_strsep(char **, char **, const char *);
-long                  ftp_i_seconds_between(struct timeval t1, struct timeval t2);
+extern long           ftp_i_seconds_between(struct timeval t1, struct timeval t2);
 void                  ftp_i_memcpy(void *, const void *, size_t, size_t);
-extern int            ftp_i_char_is_number(char chr);
+extern int            ftp_i_char_is_number(char);
+extern void           ftp_i_strtolower(char *);
 
 #ifdef FTP_TLS_ENABLED
 
