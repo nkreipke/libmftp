@@ -35,7 +35,6 @@ ftp_content_listing *ftp_i_mkcontentlisting(void)
     ftp_content_listing *c = calloc(1,sizeof(ftp_content_listing));
     if (!c)
         return NULL;
-    bzero((void*)c, sizeof(ftp_content_listing));
     return c;
 }
 
