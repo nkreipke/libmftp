@@ -279,8 +279,7 @@ ftp_content_listing *ftp_i_read_list_answer(ftp_i_managed_buffer *buffer, int *i
                 current->facts.modify.time.timedate = fp.mtime;
             }*/
             current->facts.size = (unsigned long)fp.size;
-            if (fp.mtime_given)
-            {
+            if (fp.mtime_given) {
                 current->facts.modify = fp.mtime;
                 current->facts.given.modify = ftp_btrue;
             }
