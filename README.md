@@ -29,11 +29,13 @@ test/libmftp_test.out
 ```
 You will be asked for a host URL, a remote working directory, an username and a password.
 If the test fails, please create a [New Issue](https://github.com/nkreipke/libmftp/issues/new) with the program output (minus the credentials you entered) and the server software you used (although I don't mind if you don't know this). You can use this mask if you like:
+
     Server Software: unknown
     Test output:
     ```
     [program output]
     ```
+
 Please "fence" the server output like in the example, otherwise very ugly Markdown would be produced. Please ensure that no private information is included in the log.
 
 # Contributing
