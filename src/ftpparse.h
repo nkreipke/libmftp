@@ -1,6 +1,6 @@
 /* ftpparse
-     Original version 20001223 by D. J. Bernstein
-     http://cr.yp.to/ftpparse.html
+		 Original version 20001223 by D. J. Bernstein
+		 http://cr.yp.to/ftpparse.html
 
  Modified for libmftp by nkreipke
 
@@ -52,21 +52,21 @@ fp.name points somewhere within buf.
 */
 
 struct ftpparse {
-  char *name; /* not necessarily 0-terminated */
-  int namelen;
-  int flagtrycwd; /* 0 if cwd is definitely pointless, 1 otherwise */
-  int flagtryretr; /* 0 if retr is definitely pointless, 1 otherwise */
-  int sizetype;
-  long size; /* number of octets */
-  /*int mtimetype;
-  time_t mtime; /* modification time */
-  int idtype;
-  char *id; /* not necessarily 0-terminated */
-  int idlen;
+	char *name; /* not necessarily 0-terminated */
+	int namelen;
+	int flagtrycwd; /* 0 if cwd is definitely pointless, 1 otherwise */
+	int flagtryretr; /* 0 if retr is definitely pointless, 1 otherwise */
+	int sizetype;
+	long size; /* number of octets */
+	/*int mtimetype;
+	time_t mtime; /* modification time */
+	int idtype;
+	char *id; /* not necessarily 0-terminated */
+	int idlen;
 
-    char unix_permissions[10];
-    ftp_date mtime;
-    ftp_bool mtime_given:1;
+	char unix_permissions[10];
+	ftp_date mtime;
+	ftp_bool mtime_given:1;
 } ;
 
 #define FTPPARSE_SIZE_UNKNOWN 0

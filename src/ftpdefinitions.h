@@ -50,27 +50,27 @@ typedef unsigned char        ftp_activity;
 typedef unsigned char        ftp_bool;
 
 struct ftp_features {
-    ftp_bool use_epsv;
-    ftp_bool use_mlsd;
+	ftp_bool use_epsv;
+	ftp_bool use_mlsd;
 };
 
 enum ftp_bools {
-    ftp_bfalse = 0,
-    ftp_btrue = 1
+	ftp_bfalse = 0,
+	ftp_btrue = 1
 };
 
 #ifdef FTP_PERM_ENABLED
 typedef struct {
-    ftp_bool a_canappend:1;
-    ftp_bool c_cancreatechilditems:1;
-    ftp_bool d_canbedeleted:1;
-    ftp_bool e_canenter:1;
-    ftp_bool f_canrename:1;
-    ftp_bool l_canlistcontents:1;
-    ftp_bool m_canmkd:1;
-    ftp_bool p_candeletecontents:1;
-    ftp_bool r_canretrieve:1;
-    ftp_bool w_canstore:1;
+	ftp_bool a_canappend:1;
+	ftp_bool c_cancreatechilditems:1;
+	ftp_bool d_canbedeleted:1;
+	ftp_bool e_canenter:1;
+	ftp_bool f_canrename:1;
+	ftp_bool l_canlistcontents:1;
+	ftp_bool m_canmkd:1;
+	ftp_bool p_candeletecontents:1;
+	ftp_bool r_canretrieve:1;
+	ftp_bool w_canstore:1;
 } ftp_perm;
 #endif
 

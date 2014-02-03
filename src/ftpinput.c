@@ -50,66 +50,66 @@ ftp_bool ftp_i_process_input(ftp_connection *, ftp_i_managed_buffer *);
  */
 void* ftp_i_input_thread(void *connection)
 {
-    ftp_connection *c = (ftp_connection *)connection;
+	ftp_connection *c = (ftp_connection *)connection;
 
-    ftp_i_managed_buffer *message = ftp_i_managed_buffer_new();
+	ftp_i_managed_buffer *message = ftp_i_managed_buffer_new();
 
-    while (!c->_release_input_thread) {
-        char current;
-        if (ftp_i_read(c, 0, &current, 1) == 1) {
-            if (current == CHAR_LF)
-                // Ignoring newline characters.
-                continue;
-            if (current == CHAR_CR) {
-                // Buffer contains a complete message.
-                // We have to consume the following Line Feed, otherwise this could irritate an SSL
-                // handshake.
-                if (ftp_i_read(c, 0, &current, 1) != 1 || current != CHAR_LF) {
-                    // Unexpected input.
-                    FTP_ERR("Input thread received invalid char after Carriage Return.\n");
-                    ftp_i_connection_set_error(c, FTP_EUNEXPECTED);
-                    break;
-                }
-                if (ftp_i_process_input(c, message))
-                    // Processed message requires this input thread to terminate in order to
-                    // notify the waiting main thread.
-                    break;
-                // Reset message buffer.
-                ftp_i_managed_buffer_free(message);
-                message = ftp_i_managed_buffer_new();
-            } else {
-                if (ftp_i_managed_buffer_append(message, (void *)&current, 1) != FTP_OK) {
-                    FTP_ERR("Allocation error.\n");
-                    ftp_i_connection_set_error(c, FTP_ECOULDNOTALLOCATE);
-                    break;
-                }
-            }
-        } else {
-            if (ftp_i_is_timed_out(errno)) {
-                // We reached a timeout. The timeout is set to a short time span,
-                // so we are able to react appropriately.
-                if (ftp_i_connection_is_waiting(c) && ftp_i_reached_timeout(c)) {
-                    // The connection currently waits for a server answer and has reached
-                    // the pre-defined timeout.
-                    FTP_ERR("Timeout reached.\n");
-                    ftp_i_connection_set_error(c, FTP_ETIMEOUT);
-                    break;
-                }
-            } else if (ftp_i_connection_is_down(c) || c->_termination_signal) {
-                // Connection ended normally.
-                break;
-            } else {
-                // Another socket error, we are probably not able to continue from here.
-                FTP_ERR("Socket Error.\n");
-                ftp_i_connection_set_error(c, FTP_ESOCKET);
-                break;
-            }
-        }
-    }
+	while (!c->_release_input_thread) {
+		char current;
+		if (ftp_i_read(c, 0, &current, 1) == 1) {
+			if (current == CHAR_LF)
+				// Ignoring newline characters.
+				continue;
+			if (current == CHAR_CR) {
+				// Buffer contains a complete message.
+				// We have to consume the following Line Feed, otherwise this could irritate an SSL
+				// handshake.
+				if (ftp_i_read(c, 0, &current, 1) != 1 || current != CHAR_LF) {
+					// Unexpected input.
+					FTP_ERR("Input thread received invalid char after Carriage Return.\n");
+					ftp_i_connection_set_error(c, FTP_EUNEXPECTED);
+					break;
+				}
+				if (ftp_i_process_input(c, message))
+					// Processed message requires this input thread to terminate in order to
+					// notify the waiting main thread.
+					break;
+				// Reset message buffer.
+				ftp_i_managed_buffer_free(message);
+				message = ftp_i_managed_buffer_new();
+			} else {
+				if (ftp_i_managed_buffer_append(message, (void *)&current, 1) != FTP_OK) {
+					FTP_ERR("Allocation error.\n");
+					ftp_i_connection_set_error(c, FTP_ECOULDNOTALLOCATE);
+					break;
+				}
+			}
+		} else {
+			if (ftp_i_is_timed_out(errno)) {
+				// We reached a timeout. The timeout is set to a short time span,
+				// so we are able to react appropriately.
+				if (ftp_i_connection_is_waiting(c) && ftp_i_reached_timeout(c)) {
+					// The connection currently waits for a server answer and has reached
+					// the pre-defined timeout.
+					FTP_ERR("Timeout reached.\n");
+					ftp_i_connection_set_error(c, FTP_ETIMEOUT);
+					break;
+				}
+			} else if (ftp_i_connection_is_down(c) || c->_termination_signal) {
+				// Connection ended normally.
+				break;
+			} else {
+				// Another socket error, we are probably not able to continue from here.
+				FTP_ERR("Socket Error.\n");
+				ftp_i_connection_set_error(c, FTP_ESOCKET);
+				break;
+			}
+		}
+	}
 
-    ftp_i_managed_buffer_free(message);
-    c->_input_thread = 0;
-    return NULL;
+	ftp_i_managed_buffer_free(message);
+	c->_input_thread = 0;
+	return NULL;
 }
 
 /*
@@ -119,45 +119,45 @@ void* ftp_i_input_thread(void *connection)
  */
 ftp_bool ftp_i_process_input(ftp_connection *c, ftp_i_managed_buffer *buf)
 {
-    int signal;
-    ftp_bool is_error;
+	int signal;
+	ftp_bool is_error;
 
-    if (ftp_i_managed_buffer_length(buf) < 3)
-        return ftp_bfalse;
+	if (ftp_i_managed_buffer_length(buf) < 3)
+		return ftp_bfalse;
 
-    if ((signal = ftp_i_input_sign(ftp_i_managed_buffer_cbuf(buf))) == FTP_INTERNAL_SIGNAL_ERROR)
-        return ftp_bfalse;
+	if ((signal = ftp_i_input_sign(ftp_i_managed_buffer_cbuf(buf))) == FTP_INTERNAL_SIGNAL_ERROR)
+		return ftp_bfalse;
 
 #ifdef FTP_SERVER_VERBOSE
-    printf("# [server->client] ");
-    if (c->_temporary)
-        printf("(TMP) ");
-    ftp_i_managed_buffer_print(buf);
+	printf("# [server->client] ");
+	if (c->_temporary)
+		printf("(TMP) ");
+	ftp_i_managed_buffer_print(buf);
 #endif
 
-    c->last_signal = signal;
-    is_error = ftp_i_signal_is_error(signal);
-    if (is_error)
-        c->_internal_error_signal = ftp_btrue;
+	c->last_signal = signal;
+	is_error = ftp_i_signal_is_error(signal);
+	if (is_error)
+		c->_internal_error_signal = ftp_btrue;
 
-    if (c->_last_answer_lock_signal != SIGN_NOTHING && c->_last_answer_lock_signal == signal) {
-        // Store the string attached to the signal number.
-        ftp_i_managed_buffer *last_answer = ftp_i_managed_buffer_new();
-        if (ftp_i_managed_buffer_memcpy(last_answer, buf, 4, ftp_i_managed_buffer_length(buf) - 4) != FTP_OK) {
-            FTP_ERR("Allocation error.\n");
-            ftp_i_managed_buffer_free(last_answer);
-            return ftp_bfalse;
-        }
-        c->_last_answer_buffer = (void *)last_answer;
-    }
+	if (c->_last_answer_lock_signal != SIGN_NOTHING && c->_last_answer_lock_signal == signal) {
+		// Store the string attached to the signal number.
+		ftp_i_managed_buffer *last_answer = ftp_i_managed_buffer_new();
+		if (ftp_i_managed_buffer_memcpy(last_answer, buf, 4, ftp_i_managed_buffer_length(buf) - 4) != FTP_OK) {
+			FTP_ERR("Allocation error.\n");
+			ftp_i_managed_buffer_free(last_answer);
+			return ftp_bfalse;
+		}
+		c->_last_answer_buffer = (void *)last_answer;
+	}
 
-    if (ftp_i_has_triggers(c))
-        // This connection waits for something. We will return true if a trigger signal was
-        // reached and also if the signal is an error.
-        if (is_error || ftp_i_is_trigger(c, signal))
-            return ftp_btrue;
+	if (ftp_i_has_triggers(c))
+		// This connection waits for something. We will return true if a trigger signal was
+		// reached and also if the signal is an error.
+		if (is_error || ftp_i_is_trigger(c, signal))
+			return ftp_btrue;
 
-    return ftp_bfalse;
+	return ftp_bfalse;
 }
 
 /*
@@ -165,10 +165,10 @@ ftp_bool ftp_i_process_input(ftp_connection *c, ftp_i_managed_buffer *buf)
  */
 ftp_bool ftp_i_reached_timeout(ftp_connection *c)
 {
-    struct timeval t;
-    gettimeofday(&t, NULL);
-    long sec = ftp_i_seconds_between(c->_wait_start, t);
-    return (sec > c->timeout);
+	struct timeval t;
+	gettimeofday(&t, NULL);
+	long sec = ftp_i_seconds_between(c->_wait_start, t);
+	return (sec > c->timeout);
 }
 
 /*
@@ -176,14 +176,14 @@ ftp_bool ftp_i_reached_timeout(ftp_connection *c)
  */
 int ftp_i_establish_input_thread(ftp_connection *c)
 {
-    if (c->_disable_input_thread)
-        FTP_WARN("BUG: trying to establish an input thread although _disable_input_thread is true.\n");
-    if (c->_input_thread != 0)
-        FTP_WARN("BUG: trying to establish an input thread while an instance already esists.\n");
-    pthread_t t;
-    int r = pthread_create(&t, NULL, ftp_i_input_thread, c);
-    c->_input_thread = t;
-    return r;
+	if (c->_disable_input_thread)
+		FTP_WARN("BUG: trying to establish an input thread although _disable_input_thread is true.\n");
+	if (c->_input_thread != 0)
+		FTP_WARN("BUG: trying to establish an input thread while an instance already esists.\n");
+	pthread_t t;
+	int r = pthread_create(&t, NULL, ftp_i_input_thread, c);
+	c->_input_thread = t;
+	return r;
 }
 
 /*
@@ -192,43 +192,43 @@ int ftp_i_establish_input_thread(ftp_connection *c)
  */
 ftp_status ftp_i_wait_for_triggers(ftp_connection *c)
 {
-    // The input thread will automatically terminate when an input trigger
-    // is reached.
-    c->status = FTP_WAITING;
-    ftp_i_connection_set_error(c, 0);
-    gettimeofday(&c->_wait_start, NULL);
+	// The input thread will automatically terminate when an input trigger
+	// is reached.
+	c->status = FTP_WAITING;
+	ftp_i_connection_set_error(c, 0);
+	gettimeofday(&c->_wait_start, NULL);
 
-    if (c->_input_thread != 0 && pthread_join(c->_input_thread, NULL) != 0) {
-        FTP_ERR("Could not join input thread.\n");
-        ftp_i_connection_set_error(c, FTP_ETHREAD);
-        return FTP_ERROR;
-    }
+	if (c->_input_thread != 0 && pthread_join(c->_input_thread, NULL) != 0) {
+		FTP_ERR("Could not join input thread.\n");
+		ftp_i_connection_set_error(c, FTP_ETHREAD);
+		return FTP_ERROR;
+	}
 
-    ftp_bool result = FTP_OK;
-    if (c->error != 0)
-        // An error occurred while waiting for the trigger (timeout, socket error, ...)
-        result = FTP_ERROR;
-    if (!c->_disable_input_thread && ftp_i_establish_input_thread(c) != 0) {
-        FTP_ERR("Could not establish input thread.\n");
-        ftp_i_connection_set_error(c, FTP_ETHREAD);
-        result = FTP_ERROR;
-    }
+	ftp_bool result = FTP_OK;
+	if (c->error != 0)
+		// An error occurred while waiting for the trigger (timeout, socket error, ...)
+		result = FTP_ERROR;
+	if (!c->_disable_input_thread && ftp_i_establish_input_thread(c) != 0) {
+		FTP_ERR("Could not establish input thread.\n");
+		ftp_i_connection_set_error(c, FTP_ETHREAD);
+		result = FTP_ERROR;
+	}
 
-    ftp_i_reset_triggers(c);
-    c->_last_answer_lock_signal = SIGN_NOTHING;
-    c->status = FTP_UP;
-    return result;
+	ftp_i_reset_triggers(c);
+	c->_last_answer_lock_signal = SIGN_NOTHING;
+	c->status = FTP_UP;
+	return result;
 }
 
 /*
  * Terminates an input thread.
  */
 int ftp_i_release_input_thread(ftp_connection *c) {
-    c->_release_input_thread = ftp_btrue;
-    if (c->_input_thread != 0)
-        pthread_join(c->_input_thread, NULL);
-    c->_release_input_thread = ftp_bfalse;
-    return 0;
+	c->_release_input_thread = ftp_btrue;
+	if (c->_input_thread != 0)
+		pthread_join(c->_input_thread, NULL);
+	c->_release_input_thread = ftp_bfalse;
+	return 0;
 }
 
 /*
@@ -236,13 +236,13 @@ int ftp_i_release_input_thread(ftp_connection *c) {
  */
 void ftp_i_set_input_trigger(ftp_connection *c, int sig)
 {
-    for (int i = 0; i < FTP_TRIGGER_MAX; i++) {
-        if (c->_input_trigger_signals[i] == SIGN_NOTHING) {
-            c->_input_trigger_signals[i] = sig;
-            return;
-        }
-    }
-    FTP_WARN("BUG: Too many trigger signals registered.\n");
+	for (int i = 0; i < FTP_TRIGGER_MAX; i++) {
+		if (c->_input_trigger_signals[i] == SIGN_NOTHING) {
+			c->_input_trigger_signals[i] = sig;
+			return;
+		}
+	}
+	FTP_WARN("BUG: Too many trigger signals registered.\n");
 }
 
 /*
@@ -250,13 +250,13 @@ void ftp_i_set_input_trigger(ftp_connection *c, int sig)
  */
 ftp_bool ftp_i_is_trigger(ftp_connection *c, int sig)
 {
-    for (int i = 0; i < FTP_TRIGGER_MAX; i++) {
-        if (c->_input_trigger_signals[i] == SIGN_NOTHING)
-            return ftp_bfalse;
-        if (c->_input_trigger_signals[i] == sig)
-            return ftp_btrue;
-    }
-    return ftp_bfalse;
+	for (int i = 0; i < FTP_TRIGGER_MAX; i++) {
+		if (c->_input_trigger_signals[i] == SIGN_NOTHING)
+			return ftp_bfalse;
+		if (c->_input_trigger_signals[i] == sig)
+			return ftp_btrue;
+	}
+	return ftp_bfalse;
 }
 
 /*
@@ -264,6 +264,6 @@ ftp_bool ftp_i_is_trigger(ftp_connection *c, int sig)
  */
 void ftp_i_reset_triggers(ftp_connection *c)
 {
-    for (int i = 0; i < FTP_TRIGGER_MAX; i++)
-        c->_input_trigger_signals[i] = SIGN_NOTHING;
+	for (int i = 0; i < FTP_TRIGGER_MAX; i++)
+		c->_input_trigger_signals[i] = SIGN_NOTHING;
 }

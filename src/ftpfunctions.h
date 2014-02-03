@@ -69,12 +69,12 @@
  * Iterating through a separated string.
  */
 #define for_sep(ival,str,sep,block) do { \
-    char *input = str; \
-    char *ival = NULL; \
-    ftp_i_strsep(&input, &ival, (sep)); \
-    for (; input || ival; ftp_i_strsep(&input, &ival, (sep))) \
-        if (strlen(ival) > 0) block \
-    ftp_i_free(ival); \
+	char *input = str; \
+	char *ival = NULL; \
+	ftp_i_strsep(&input, &ival, (sep)); \
+	for (; input || ival; ftp_i_strsep(&input, &ival, (sep))) \
+		if (strlen(ival) > 0) block \
+	ftp_i_free(ival); \
 } while (0);
 
 //lowercase:
@@ -83,17 +83,17 @@
 #define ANSWER_LEN 5000
 
 typedef struct {
-    void *buffer;
-    unsigned long size;
-    unsigned long length;
-    unsigned long offset;
+	void *buffer;
+	unsigned long size;
+	unsigned long length;
+	unsigned long offset;
 } ftp_i_managed_buffer;
 
 typedef struct {
-    /* Currently not used: */
-    /*unsigned int net_port;
-    char *net_addr;*/
-    unsigned int tcp_port;
+	/* Currently not used: */
+	/*unsigned int net_port;
+	char *net_addr;*/
+	unsigned int tcp_port;
 } ftp_i_ex_answer;
 
 FTP_I_BEGIN_DECLS
@@ -109,7 +109,7 @@ void                  ftp_i_set_input_trigger(ftp_connection *, int);
 ftp_status            ftp_i_wait_for_triggers(ftp_connection *);
 
 //                    Signal Processing
-int                   ftp_i_signal_is_error(int);
+extern int            ftp_i_signal_is_error(int);
 int                   ftp_i_input_sign(char *);
 
 //                    Data Connection
@@ -157,7 +157,7 @@ void                  ftp_i_managed_buffer_free(ftp_i_managed_buffer *);
 void                  ftp_i_strsep(char **, char **, const char *);
 long                  ftp_i_seconds_between(struct timeval t1, struct timeval t2);
 void                  ftp_i_memcpy(void *, const void *, size_t, size_t);
-int                   ftp_i_char_is_number(char chr);
+extern int            ftp_i_char_is_number(char chr);
 
 #ifdef FTP_TLS_ENABLED
 

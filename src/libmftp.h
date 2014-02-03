@@ -69,68 +69,68 @@
 ////////////////////
 
 typedef struct {
-    /* Status of the connection. */
-    ftp_status status;
+	/* Status of the connection. */
+	ftp_status status;
 
-    /* The current remote directory.
-     * Call ftp_reload_cur_directory first. */
-    char * cur_directory;
+	/* The current remote directory.
+	 * Call ftp_reload_cur_directory first. */
+	char * cur_directory;
 
-    /* The connection timeout when waiting for a server answer. (60 by default) */
-    unsigned long timeout;
+	/* The connection timeout when waiting for a server answer. (60 by default) */
+	unsigned long timeout;
 
-    /* The status number of the latest server answer. */
-    int last_signal;
+	/* The status number of the latest server answer. */
+	int last_signal;
 
-    /* Error ID */
-    int error;
+	/* Error ID */
+	int error;
 
-    /* Sets whether a second connection should automatically be used for file transfers. (true by default)
-     * This is necessary for background file transfers.
-     * (Ignored if multiple connections are not allowed) */
-    ftp_bool file_transfer_second_connection:1;
+	/* Sets whether a second connection should automatically be used for file transfers. (true by default)
+	 * This is necessary for background file transfers.
+	 * (Ignored if multiple connections are not allowed) */
+	ftp_bool file_transfer_second_connection:1;
 
-    /* Filters ".", ".." and other items that are neither files nor directories. */
-    ftp_bool content_listing_filter:1;
+	/* Filters ".", ".." and other items that are neither files nor directories. */
+	ftp_bool content_listing_filter:1;
 
 
-    /* Internal */
-    int _port;
-    int _adr_fam;
-    int _sockfd;
-    int _data_connection;
-    struct ftp_features __features;
-    struct ftp_features * _current_features;
-    int _last_answer_lock_signal;
-    void * _last_answer_buffer;
-    char *_host;
-    char * _dataBuf;
-    unsigned long _dataPointer;
-    pthread_t _input_thread;
-    int _input_trigger_signals[FTP_TRIGGER_MAX];
-    struct timeval _wait_start;
-    char *_mc_user, *_mc_pass;
-    ftp_bool _internal_error_signal:1;
-    ftp_bool _mc_enabled:1;
-    ftp_bool _temporary:1;
-    ftp_bool _termination_signal:1;
-    ftp_bool _release_input_thread:1;
-    ftp_bool _disable_input_thread:1;
+	/* Internal */
+	int _port;
+	int _adr_fam;
+	int _sockfd;
+	int _data_connection;
+	struct ftp_features __features;
+	struct ftp_features * _current_features;
+	int _last_answer_lock_signal;
+	void * _last_answer_buffer;
+	char *_host;
+	char * _dataBuf;
+	unsigned long _dataPointer;
+	pthread_t _input_thread;
+	int _input_trigger_signals[FTP_TRIGGER_MAX];
+	struct timeval _wait_start;
+	char *_mc_user, *_mc_pass;
+	ftp_bool _internal_error_signal:1;
+	ftp_bool _mc_enabled:1;
+	ftp_bool _temporary:1;
+	ftp_bool _termination_signal:1;
+	ftp_bool _release_input_thread:1;
+	ftp_bool _disable_input_thread:1;
 #ifdef FTP_TLS_ENABLED
-    void *_tls_info;
-    void *_tls_info_dc;
+	void *_tls_info;
+	void *_tls_info_dc;
 #endif
 } ftp_connection;
 
 typedef enum {
-    /* Do not establish secure connection. */
-    ftp_security_none
+	/* Do not establish secure connection. */
+	ftp_security_none
 #ifdef FTP_TLS_ENABLED
-    /* A secure TLS connection will be established if the server supports it. */
-    ,ftp_security_auto,
-    /* Always establish a TLS connection. If the server does not support TLS,
-     * the connection will fail. */
-    ftp_security_always
+	/* A secure TLS connection will be established if the server supports it. */
+	,ftp_security_auto,
+	/* Always establish a TLS connection. If the server does not support TLS,
+	 * the connection will fail. */
+	ftp_security_always
 #endif
 } ftp_security;
 
@@ -140,45 +140,45 @@ typedef enum {
  * file->error will always point to the correct error variable.
  */
 typedef struct {
-    ftp_connection *c;
-    ftp_connection *parent;
-    ftp_activity activity;
+	ftp_connection *c;
+	ftp_connection *parent;
+	ftp_activity activity;
 
-    ftp_bool eof;
-    int *error;
+	ftp_bool eof;
+	int *error;
 } ftp_file;
 
 typedef struct {
-    unsigned int year, month, day, hour, minute, second;
+	unsigned int year, month, day, hour, minute, second;
 } ftp_date;
 
 typedef enum  {
-    ft_file, ft_dir, ft_other
+	ft_file, ft_dir, ft_other
 } ftp_file_type;
 
 typedef struct {
-    struct {
-        ftp_bool size:1;
-        ftp_bool modify:1;
-        ftp_bool create:1;
-        ftp_bool type:1;
-        ftp_bool unixgroup:1;
-        ftp_bool unixmode:1;
-    } given;
+	struct {
+		ftp_bool size:1;
+		ftp_bool modify:1;
+		ftp_bool create:1;
+		ftp_bool type:1;
+		ftp_bool unixgroup:1;
+		ftp_bool unixmode:1;
+	} given;
 
-    unsigned long size;
-    ftp_date modify;
-    ftp_date create;
-    ftp_file_type type;
-    unsigned int unixgroup;
-    unsigned int unixmode;
+	unsigned long size;
+	ftp_date modify;
+	ftp_date create;
+	ftp_file_type type;
+	unsigned int unixgroup;
+	unsigned int unixmode;
 } ftp_file_facts;
 
 typedef struct _ftpcontentlisting {
-    char *filename;
-    ftp_file_facts facts;
+	char *filename;
+	ftp_file_facts facts;
 
-    struct _ftpcontentlisting *next;
+	struct _ftpcontentlisting *next;
 } ftp_content_listing;
 
 /*

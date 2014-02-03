@@ -31,79 +31,79 @@
 
 ftp_status ftp_i_store_auth(ftp_connection *c, char *user, char *pass)
 {
-    ftp_i_free(c->_mc_user);
-    ftp_i_free(c->_mc_pass);
-    c->_mc_user = (char*)malloc(sizeof(char) * (strlen(user) + 1));
-    c->_mc_pass = (char*)malloc(sizeof(char) * (strlen(pass) + 1));
-    if (!c->_mc_user || !c->_mc_pass) {
-        c->error = FTP_ECOULDNOTALLOCATE;
-        return FTP_ERROR;
-    }
-    strcpy(c->_mc_user, user);
-    strcpy(c->_mc_pass, pass);
-    return FTP_OK;
+	ftp_i_free(c->_mc_user);
+	ftp_i_free(c->_mc_pass);
+	c->_mc_user = (char*)malloc(sizeof(char) * (strlen(user) + 1));
+	c->_mc_pass = (char*)malloc(sizeof(char) * (strlen(pass) + 1));
+	if (!c->_mc_user || !c->_mc_pass) {
+		c->error = FTP_ECOULDNOTALLOCATE;
+		return FTP_ERROR;
+	}
+	strcpy(c->_mc_user, user);
+	strcpy(c->_mc_pass, pass);
+	return FTP_OK;
 }
 
 ftp_status ftp_auth(ftp_connection *c, char *user, char *pass, ftp_bool allow_multiple_connections)
 {
-    if (user == NULL && pass == NULL && !allow_multiple_connections) {
-        c->error = FTP_EARGUMENTS;
-        return FTP_ERROR;
-    }
-    if (c->status != FTP_UP) {
-        c->error = FTP_ENOTREADY;
-        return FTP_ERROR;
-    }
-    if (allow_multiple_connections) {
-        if (user != NULL && pass != NULL)
-            ftp_i_store_auth(c, user, pass);
-        c->_mc_enabled = ftp_btrue;
-    }
-    if (user != NULL && pass != NULL) {
-        char cmd[500];
-        int r;
-        sprintf(cmd, FTP_CUSER " %s" FTP_CENDL, user);
-        ftp_i_set_input_trigger(c, FTP_SIGNAL_LOGGED_IN);
-        ftp_i_set_input_trigger(c, FTP_SIGNAL_PASSWORD_REQUIRED);
-        ftp_send(c, cmd);
-        if (ftp_i_wait_for_triggers(c) != FTP_OK)
-            return FTP_ERROR;
-        if (ftp_i_signal_is_error(c->last_signal))
-            if (c->last_signal == FTP_SIGNAL_NOT_LOGGED_IN) {
-                c->error = FTP_EWRONGAUTH;
-                return FTP_ERROR;
-            } else {
-                c->error = FTP_EUNEXPECTED;
-                return FTP_ERROR;
-            }
-        if (c->last_signal == FTP_SIGNAL_LOGGED_IN) {
-            return FTP_OK;
-        }
-        else if (c->last_signal == FTP_SIGNAL_PASSWORD_REQUIRED) {
-            sprintf(cmd, FTP_CPASS " %s" FTP_CENDL, pass);
-            ftp_i_set_input_trigger(c, FTP_SIGNAL_LOGGED_IN);
-            ftp_send(c, cmd);
-            if (ftp_i_wait_for_triggers(c) != FTP_OK)
-                return FTP_ERROR;
-            if (ftp_i_signal_is_error(c->last_signal)) {
-                if (c->last_signal == FTP_SIGNAL_NOT_LOGGED_IN) {
-                    c->error = FTP_EWRONGAUTH;
-                    return FTP_ERROR;
-                } else {
-                    c->error = FTP_EUNEXPECTED;
-                    return FTP_ERROR;
-                }
-            }
-            if (c->last_signal == FTP_SIGNAL_LOGGED_IN) {
-                return FTP_OK;
-            } else {
-                c->error = FTP_EUNEXPECTED;
-                return FTP_ERROR;
-            }
-        } else {
-            c->error = FTP_EUNEXPECTED;
-            return FTP_ERROR;
-        }
-    }
-    return FTP_OK;
+	if (user == NULL && pass == NULL && !allow_multiple_connections) {
+		c->error = FTP_EARGUMENTS;
+		return FTP_ERROR;
+	}
+	if (c->status != FTP_UP) {
+		c->error = FTP_ENOTREADY;
+		return FTP_ERROR;
+	}
+	if (allow_multiple_connections) {
+		if (user != NULL && pass != NULL)
+			ftp_i_store_auth(c, user, pass);
+		c->_mc_enabled = ftp_btrue;
+	}
+	if (user != NULL && pass != NULL) {
+		char cmd[500];
+		int r;
+		sprintf(cmd, FTP_CUSER " %s" FTP_CENDL, user);
+		ftp_i_set_input_trigger(c, FTP_SIGNAL_LOGGED_IN);
+		ftp_i_set_input_trigger(c, FTP_SIGNAL_PASSWORD_REQUIRED);
+		ftp_send(c, cmd);
+		if (ftp_i_wait_for_triggers(c) != FTP_OK)
+			return FTP_ERROR;
+		if (ftp_i_signal_is_error(c->last_signal))
+			if (c->last_signal == FTP_SIGNAL_NOT_LOGGED_IN) {
+				c->error = FTP_EWRONGAUTH;
+				return FTP_ERROR;
+			} else {
+				c->error = FTP_EUNEXPECTED;
+				return FTP_ERROR;
+			}
+		if (c->last_signal == FTP_SIGNAL_LOGGED_IN) {
+			return FTP_OK;
+		}
+		else if (c->last_signal == FTP_SIGNAL_PASSWORD_REQUIRED) {
+			sprintf(cmd, FTP_CPASS " %s" FTP_CENDL, pass);
+			ftp_i_set_input_trigger(c, FTP_SIGNAL_LOGGED_IN);
+			ftp_send(c, cmd);
+			if (ftp_i_wait_for_triggers(c) != FTP_OK)
+				return FTP_ERROR;
+			if (ftp_i_signal_is_error(c->last_signal)) {
+				if (c->last_signal == FTP_SIGNAL_NOT_LOGGED_IN) {
+					c->error = FTP_EWRONGAUTH;
+					return FTP_ERROR;
+				} else {
+					c->error = FTP_EUNEXPECTED;
+					return FTP_ERROR;
+				}
+			}
+			if (c->last_signal == FTP_SIGNAL_LOGGED_IN) {
+				return FTP_OK;
+			} else {
+				c->error = FTP_EUNEXPECTED;
+				return FTP_ERROR;
+			}
+		} else {
+			c->error = FTP_EUNEXPECTED;
+			return FTP_ERROR;
+		}
+	}
+	return FTP_OK;
 }

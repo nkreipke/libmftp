@@ -31,8 +31,8 @@
 #include <openssl/err.h>
 
 struct tls_info {
-    SSL_CTX *ctx;
-    SSL *ssl;
+	SSL_CTX *ctx;
+	SSL *ssl;
 };
 #define tls_info_malloc() calloc(1, sizeof(struct tls_info))
 int tls_loaded = 0;
@@ -50,107 +50,107 @@ void load_tls(void);
 
 
 ftp_status ftp_i_tls_connect(int sockfd, void **tls_info_ptr, void *tls_reuse_info_ptr, int *error) {
-    load_tls();
-    if (!tls_loaded) {
-        *error = FTP_ETLS_COULDNOTINIT;
-        return FTP_ERROR;
-    }
-    struct tls_info *tls = tls_info_malloc();
-    if (!tls) {
-        *error = FTP_ECOULDNOTALLOCATE;
-        return FTP_ERROR;
-    }
+	load_tls();
+	if (!tls_loaded) {
+		*error = FTP_ETLS_COULDNOTINIT;
+		return FTP_ERROR;
+	}
+	struct tls_info *tls = tls_info_malloc();
+	if (!tls) {
+		*error = FTP_ECOULDNOTALLOCATE;
+		return FTP_ERROR;
+	}
 
-    SSL_CTX *ctx = NULL;
-    if (tls_reuse_info_ptr) {
-        ctx = ((struct tls_info*)tls_reuse_info_ptr)->ctx;
-    }
-    if (!ctx) {
-        FTP_LOGSSL("new context\n");
-        tls->ctx = SSL_CTX_new(SSLv23_client_method());
-        if (!tls->ctx) {
-            FTP_SSL_log_errors();
-            *error = FTP_ETLS_COULDNOTINIT;
-            free(tls);
-            return FTP_ERROR;
-        }
-        SSL_CTX_set_timeout(tls->ctx, 600);
-        long mode = SSL_CTX_get_session_cache_mode(tls->ctx);
-        mode |= SSL_SESS_CACHE_CLIENT;
-        SSL_CTX_set_session_cache_mode(tls->ctx, mode);
-        ctx = tls->ctx;
-    }
-    FTP_LOGSSL("new ssl\n");
-    tls->ssl = SSL_new(ctx);
-    if (!tls->ssl) {
-        FTP_SSL_log_errors();
-        *error = FTP_ETLS_COULDNOTINIT;
-        if (tls->ctx) SSL_CTX_free(tls->ctx);
-        free(tls);
-        return FTP_ERROR;
-    }
-    if (!SSL_set_fd(tls->ssl, sockfd)) {
-        FTP_SSL_log_errors();
-        FTP_SSLRETURNERROR(FTP_ETLS_COULDNOTINIT);
-    }
-    //reuse session (for data connection as some servers require this):
-    if (tls_reuse_info_ptr) {
-        FTP_LOGSSL("reusing session!\n");
-        struct tls_info *reuse = tls_reuse_info_ptr;
-        SSL_SESSION *sess = SSL_get_session(reuse->ssl);
-        if (!sess || !SSL_set_session(tls->ssl, sess)) {
-            FTP_ERR("session reuse failed.\n");
-            FTP_SSLRETURNERROR(FTP_ETLS_COULDNOTINIT);
-        }
-    }
-    FTP_LOGSSL("ssl handshake\n");
-    if (SSL_connect(tls->ssl) != 1) {
-        FTP_ERR("ssl handshake failed.\n");
-        FTP_SSL_log_errors();
-        FTP_SSLRETURNERROR(FTP_ETLS_COULDNOTINIT);
-    }
-    FTP_LOGSSL("ssl handshake successful\n");
+	SSL_CTX *ctx = NULL;
+	if (tls_reuse_info_ptr) {
+		ctx = ((struct tls_info*)tls_reuse_info_ptr)->ctx;
+	}
+	if (!ctx) {
+		FTP_LOGSSL("new context\n");
+		tls->ctx = SSL_CTX_new(SSLv23_client_method());
+		if (!tls->ctx) {
+			FTP_SSL_log_errors();
+			*error = FTP_ETLS_COULDNOTINIT;
+			free(tls);
+			return FTP_ERROR;
+		}
+		SSL_CTX_set_timeout(tls->ctx, 600);
+		long mode = SSL_CTX_get_session_cache_mode(tls->ctx);
+		mode |= SSL_SESS_CACHE_CLIENT;
+		SSL_CTX_set_session_cache_mode(tls->ctx, mode);
+		ctx = tls->ctx;
+	}
+	FTP_LOGSSL("new ssl\n");
+	tls->ssl = SSL_new(ctx);
+	if (!tls->ssl) {
+		FTP_SSL_log_errors();
+		*error = FTP_ETLS_COULDNOTINIT;
+		if (tls->ctx) SSL_CTX_free(tls->ctx);
+		free(tls);
+		return FTP_ERROR;
+	}
+	if (!SSL_set_fd(tls->ssl, sockfd)) {
+		FTP_SSL_log_errors();
+		FTP_SSLRETURNERROR(FTP_ETLS_COULDNOTINIT);
+	}
+	//reuse session (for data connection as some servers require this):
+	if (tls_reuse_info_ptr) {
+		FTP_LOGSSL("reusing session!\n");
+		struct tls_info *reuse = tls_reuse_info_ptr;
+		SSL_SESSION *sess = SSL_get_session(reuse->ssl);
+		if (!sess || !SSL_set_session(tls->ssl, sess)) {
+			FTP_ERR("session reuse failed.\n");
+			FTP_SSLRETURNERROR(FTP_ETLS_COULDNOTINIT);
+		}
+	}
+	FTP_LOGSSL("ssl handshake\n");
+	if (SSL_connect(tls->ssl) != 1) {
+		FTP_ERR("ssl handshake failed.\n");
+		FTP_SSL_log_errors();
+		FTP_SSLRETURNERROR(FTP_ETLS_COULDNOTINIT);
+	}
+	FTP_LOGSSL("ssl handshake successful\n");
 
-    *tls_info_ptr = tls;
+	*tls_info_ptr = tls;
 
-    return FTP_OK;
+	return FTP_OK;
 }
 
 void ftp_i_tls_disconnect(void **tls_info_ptr) {
-    struct tls_info *tls = *tls_info_ptr;
-    if (tls) {
-        if (tls->ssl) {
-            SSL_shutdown(tls->ssl);
-            SSL_free(tls->ssl);
-        }
-        if (tls->ctx) {
-            SSL_CTX_free(tls->ctx);
-        }
-        free(tls);
-    }
-    *tls_info_ptr = NULL;
+	struct tls_info *tls = *tls_info_ptr;
+	if (tls) {
+		if (tls->ssl) {
+			SSL_shutdown(tls->ssl);
+			SSL_free(tls->ssl);
+		}
+		if (tls->ctx) {
+			SSL_CTX_free(tls->ctx);
+		}
+		free(tls);
+	}
+	*tls_info_ptr = NULL;
 }
 
 ssize_t ftp_i_tls_write(void *tls_info_ptr, const void *buf, size_t len) {
-    struct tls_info *tls = tls_info_ptr;
-    return (ssize_t)SSL_write(tls->ssl, buf, (int)len);
+	struct tls_info *tls = tls_info_ptr;
+	return (ssize_t)SSL_write(tls->ssl, buf, (int)len);
 }
 
 ssize_t ftp_i_tls_read(void *tls_info_ptr, void *buf, size_t len) {
-    struct tls_info *tls = tls_info_ptr;
-    return (ssize_t)SSL_read(tls->ssl, buf, (int)len);
+	struct tls_info *tls = tls_info_ptr;
+	return (ssize_t)SSL_read(tls->ssl, buf, (int)len);
 }
 
 
 void load_tls(void) {
-    if (!tls_loaded) {
-        OpenSSL_add_all_algorithms();
-        SSL_load_error_strings();
-        if (SSL_library_init() < 0) {
-            return;
-        }
-        tls_loaded = 1;
-    }
+	if (!tls_loaded) {
+		OpenSSL_add_all_algorithms();
+		SSL_load_error_strings();
+		if (SSL_library_init() < 0) {
+			return;
+		}
+		tls_loaded = 1;
+	}
 }
 
 
