@@ -1,0 +1,5 @@
+aux_source_directory(. SRC_LIST)
+add_library(mftp ${SRC_LIST})
+target_link_libraries(mftp pthread)
+target_link_libraries(mftp crypto)
+target_link_libraries(mftp ssl)
