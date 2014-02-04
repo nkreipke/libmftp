@@ -97,8 +97,7 @@ ftp_content_listing *ftp_contents_of_directory(ftp_connection *c, int *items_cou
 	}
 	//start
 
-	int res = ftp_i_establish_data_connection(c);
-	if (res < 0)
+	if (ftp_i_establish_data_connection(c) != FTP_OK)
 		return NULL;
 
 	ftp_bool use_mlsd = c->_current_features->use_mlsd;
@@ -128,7 +127,7 @@ again:
 	}
 
 	//prepare data connection
-	if (ftp_i_prepare_data_connection(c) != 0) {
+	if (ftp_i_prepare_data_connection(c) != FTP_OK) {
 		ftp_i_close_data_connection(c);
 		return NULL;
 	}
@@ -264,7 +263,8 @@ ftp_file *ftp_fopen(ftp_connection *c, char *filenm, ftp_activity activity, unsi
 	f->c = fc;
 	f->error = &(fc->error);
 
-	if (ftp_i_set_transfer_type(fc, ftp_tt_binary) != FTP_OK) {
+	if (ftp_i_set_transfer_type(fc, ftp_tt_binary) != FTP_OK ||
+		ftp_i_establish_data_connection(fc) != FTP_OK) {
 		if (fc != c) {
 			c->error = fc->error;
 			ftp_close(fc);
@@ -273,15 +273,6 @@ ftp_file *ftp_fopen(ftp_connection *c, char *filenm, ftp_activity activity, unsi
 		return NULL;
 	}
 
-	int r = ftp_i_establish_data_connection(fc);
-	if (r < 0) {
-		if (fc != c) {
-			c->error = fc->error;
-			ftp_close(fc);
-		}
-		ftp_i_free(f);
-		return NULL;
-	}
 	fc->_internal_error_signal = ftp_bfalse;
 	if (activity == FTP_WRITE) {
 		char command[500];
@@ -334,7 +325,7 @@ ftp_file *ftp_fopen(ftp_connection *c, char *filenm, ftp_activity activity, unsi
 			return NULL;
 		}
 	}
-	if (ftp_i_prepare_data_connection(fc) != 0) {
+	if (ftp_i_prepare_data_connection(fc) != FTP_OK) {
 		ftp_i_close_data_connection(fc);
 		free(f);
 		return NULL;

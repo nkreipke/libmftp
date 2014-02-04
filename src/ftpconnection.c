@@ -394,37 +394,37 @@ int ftp_i_enter_pasv(ftp_connection *c)
 	return answer.tcp_port;
 }
 
-int ftp_i_establish_data_connection(ftp_connection *c)
+ftp_status ftp_i_establish_data_connection(ftp_connection *c)
 {
 	int sockfd;
 	//enter pasv
 	int pasv_port = ftp_i_enter_pasv(c);
 	if (pasv_port < 0)
-		return -1;
+		return FTP_ERROR;
 	//open socket
 	sockfd = ftp_i_socket_connect(c->_host, pasv_port, STANDARD_TIMEOUT);
 	if (sockfd < 0) {
 		ftp_i_connection_set_error(c, FTP_ECONNECTION);
-		return -1;
+		return FTP_ERROR;
 	}
 
 	FTP_LOG("data connection socket file descriptor is %i\n",sockfd);
 	c->_data_connection = sockfd;
-	return 0;
+	return FTP_OK;
 }
 
-int ftp_i_prepare_data_connection(ftp_connection *c)
+ftp_status ftp_i_prepare_data_connection(ftp_connection *c)
 {
 #ifdef FTP_TLS_ENABLED
 	if (c->_tls_info) {
 		//enable tls for this connection
 		if (ftp_connect_tls_data_connection(c) != 0) {
 			c->error = FTP_ESECURITY;
-			return -1;
+			return FTP_ERROR;
 		}
 	}
 #endif
-	return 0;
+	return FTP_OK;
 }
 
 void ftp_i_close_data_connection(ftp_connection *c)

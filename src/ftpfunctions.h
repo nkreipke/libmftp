@@ -148,8 +148,8 @@ extern int            ftp_i_signal_is_error(int);
 int                   ftp_i_input_sign(char *);
 
 /*                    Data Connection */
-int                   ftp_i_establish_data_connection(ftp_connection *);
-int                   ftp_i_prepare_data_connection(ftp_connection *);
+ftp_status            ftp_i_establish_data_connection(ftp_connection *);
+ftp_status            ftp_i_prepare_data_connection(ftp_connection *);
 void                  ftp_i_close_data_connection(ftp_connection *);
 
 /*                    PASV */
