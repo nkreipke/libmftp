@@ -53,9 +53,7 @@ ftp_content_listing *ftp_i_applyclfilter(ftp_content_listing *c, int *items_coun
 	ftp_content_listing *cur = c;
 	ftp_content_listing *previous = NULL;
 	while (cur) {
-		if (cur->facts.given.type &&
-			cur->facts.type != ft_file &&
-			cur->facts.type != ft_dir) {
+		if (!(ftp_i_clfilter_keepthis(cur))) {
 			//delete this item
 			if (previous) {
 				previous->next = cur->next;
@@ -76,6 +74,24 @@ ftp_content_listing *ftp_i_applyclfilter(ftp_content_listing *c, int *items_coun
 	}
 	*items_count = itemscount;
 	return start;
+}
+
+ftp_bool ftp_i_clfilter_keepthis(ftp_content_listing *cur)
+{
+	if (cur->facts.given.type &&
+		cur->facts.type != ft_file &&
+		cur->facts.type != ft_dir)
+		return ftp_bfalse;
+
+	if (cur->facts.given.type &&
+		cur->facts.type == ft_dir) {
+		// Workaround for servers that do not use cdir and pdir
+		if (strcmp(cur->filename, ".") == 0 ||
+			strcmp(cur->filename, "..") == 0)
+			return ftp_bfalse;
+	}
+
+	return ftp_btrue;
 }
 
 ftp_file_type ftp_i_strtotype(char *str)
