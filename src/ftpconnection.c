@@ -319,7 +319,7 @@ ftp_status ftp_i_set_transfer_type(ftp_connection *c, ftp_transfer_type tt)
 	if (ftp_i_wait_for_triggers(c) != FTP_OK)
 		return FTP_ERROR;
 	if (ftp_i_last_signal_was_error(c)) {
-		ftp_i_connection_set_error(c, FTP_EUNEXPECTED);
+		ftp_i_connection_set_error(c, FTP_ESERVERCAPABILITIES);
 		return FTP_ERROR;
 	}
 }
