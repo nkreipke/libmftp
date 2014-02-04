@@ -81,11 +81,14 @@ ftp_status ftp_change_cur_directory(ftp_connection *c, char *path)
 
 ftp_content_listing *ftp_contents_of_directory(ftp_connection *c, int *items_count)
 {
-	//FIXME: check if TYPE is ASCII first
 	if (c->_data_connection != 0 || c->status != FTP_UP) {
 		c->error = FTP_ENOTREADY;
 		return NULL;
 	}
+
+	if (ftp_i_set_transfer_type(c, ftp_tt_ascii) != FTP_OK)
+		return NULL;
+
 	//buffer
 	ftp_i_managed_buffer *buffer = ftp_i_managed_buffer_new();
 	if (!buffer) {
@@ -260,10 +263,20 @@ ftp_file *ftp_fopen(ftp_connection *c, char *filenm, ftp_activity activity, unsi
 	}
 	f->c = fc;
 	f->error = &(fc->error);
+
+	if (ftp_i_set_transfer_type(fc, ftp_tt_binary) != FTP_OK) {
+		if (fc != c)
+			ftp_close(fc);
+		ftp_i_free(f);
+		return NULL;
+	}
+
 	int r = ftp_i_establish_data_connection(fc);
 	if (r < 0) {
 		c->error = fc->error;
-		free(f);
+		if (fc != c)
+			ftp_close(fc);
+		ftp_i_free(f);
 		return NULL;
 	}
 	fc->_internal_error_signal = ftp_bfalse;
@@ -402,6 +415,10 @@ ftp_status ftp_size(ftp_connection *c, char *filenm, size_t *size)
 		c->error = FTP_EARGUMENTS;
 		return FTP_ERROR;
 	}
+
+	if (ftp_i_set_transfer_type(c, ftp_tt_binary) != FTP_OK)
+		return FTP_ERROR;
+
 	char command[500];
 	sprintf(command, FTP_CSIZE " %s" FTP_CENDL,filenm);
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_FILE_STATUS);
