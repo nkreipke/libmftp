@@ -427,8 +427,9 @@ ftp_status ftp_size(ftp_connection *c, char *filenm, size_t *size)
 	if (ftp_i_wait_for_triggers(c) != FTP_OK)
 		return FTP_ERROR;
 	if (ftp_i_last_signal_was_error(c)) {
-		//maybe this server does not support the SIZE command.
-		//we will try to get the size from a directory listing
+		/* Maybe this server does not support the SIZE command.
+		 * We will try to get the size from a directory listing */
+		FTP_WARN("Server does not support SIZE command, falling back to legacy content listing mode.\n");
 		ftp_content_listing *content = ftp_contents_of_directory(c, NULL);
 		if (!content)
 			return FTP_ERROR;
