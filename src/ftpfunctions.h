@@ -39,27 +39,47 @@
 
 #define FTP_INTERNAL_SIGNAL_ERROR 1000
 
-#define ftp_i_last_signal_was_error(con) ftp_i_signal_is_error(con->last_signal)
 
 #define ftp_i_free(ptr) if (ptr != NULL) { \
 	free(ptr); \
 	ptr=NULL; \
 }
 
+/**
+ * Copies memory and null-terminates the destination.
+ * @param  dest   The allocated destination.
+ * @param  src    The source data.
+ * @param  offset Offset of the source data.
+ * @param  len    Length of data to copy.
+ */
 #define ftp_i_memcpy_nulltrm(dest,src,offset,len) do { \
 	ftp_i_memcpy(dest,src,offset,len); \
 	*(dest+len) = '\0'; \
 } while(0)
 
+/**
+ * Allocates memory of the appropriate length and then performs ftp_i_memcpy_nulltrm.
+ * @param  dest   Will be set to the newly allocated memory or NULL if allocation failed.
+ * @param  src    The source data.
+ * @param  offset Offset of the source data.
+ * @param  len    Length of data to copy.
+ */
 #define ftp_i_memcpy_nulltrm_malloc(dest,src,offset,len) do { \
 	dest = malloc(len + 1); \
-	ftp_i_memcpy_nulltrm(dest,src,offset,len); \
+	if (dest) \
+		ftp_i_memcpy_nulltrm(dest,src,offset,len); \
 } while(0)
 
+/**
+ * Allocates memory of the appropriate length and then performs strcpy.
+ * @param  dest Will be set to the newly allocated memory or NULL if allocation failed.
+ * @param  src  The source string.
+ */
 #define ftp_i_strcpy_malloc(dest,src) do { \
 	char *s = (src); \
 	dest = (char*)malloc(sizeof(char) * (strlen(s) + 1)); \
-	strcpy(dest,s); \
+	if (dest) \
+		strcpy(dest,s); \
 } while(0)
 
 
@@ -73,6 +93,7 @@
 #define ftp_i_connection_is_waiting(c) (c->status == FTP_WAITING)
 #define ftp_i_connection_set_error(c,err) c->error = err
 #define ftp_i_connection_is_down(c) (c->status == FTP_DOWN)
+#define ftp_i_last_signal_was_error(con) ftp_i_signal_is_error(con->last_signal)
 
 #if 0
 /* For Testing */
@@ -111,30 +132,30 @@ typedef struct {
 
 FTP_I_BEGIN_DECLS
 
-//                    Read/Write
+/*                    Read/Write */
 ssize_t               ftp_i_write(ftp_connection *, int, const void *, size_t);
 ssize_t               ftp_i_read(ftp_connection *, int, void *, size_t);
 
-//                    Input Thread
+/*                    Input Thread */
 int                   ftp_i_establish_input_thread(ftp_connection *);
 int                   ftp_i_release_input_thread(ftp_connection *);
 void                  ftp_i_set_input_trigger(ftp_connection *, int);
 ftp_status            ftp_i_wait_for_triggers(ftp_connection *);
 
-//                    Signal Processing
+/*                    Signal Processing */
 extern int            ftp_i_signal_is_error(int);
 int                   ftp_i_input_sign(char *);
 
-//                    Data Connection
+/*                    Data Connection */
 int                   ftp_i_establish_data_connection(ftp_connection *);
 int                   ftp_i_prepare_data_connection(ftp_connection *);
 void                  ftp_i_close_data_connection(ftp_connection *);
 
-//                    PASV
+/*                    PASV */
 int                   ftp_i_enter_pasv_old(ftp_connection *c);
 int                   ftp_i_enter_pasv(ftp_connection *);
 
-//                    General Parsing
+/*                    General Parsing */
 unsigned int          ftp_i_values_from_comma_separated_string(char *, unsigned int[], unsigned int);
 int                   ftp_i_textfrombrackets(char *, char *, int);
 ftp_i_ex_answer       ftp_i_interpret_ex_answer(char *, int *);
@@ -143,7 +164,7 @@ ftp_date              ftp_i_date_from_string(char *);
 #define               ftp_i_date_from_values(y,m,d,h,min,s) ((ftp_date){(y),(m),(d),(h),(min),(s)})
 ftp_date              ftp_i_date_from_unix_timestamp(unsigned long);
 
-//                    Content Listing Parsing
+/*                    Content Listing Parsing */
 ftp_content_listing  *ftp_i_mkcontentlisting(void);
 ftp_content_listing  *ftp_i_applyclfilter(ftp_content_listing *, int *);
 ftp_content_listing  *ftp_i_read_mlsd_answer(ftp_i_managed_buffer *, int *);
@@ -154,7 +175,7 @@ ftp_bool              ftp_i_applyfacts(char *, ftp_file_facts *);
 ftp_file_type         ftp_i_strtotype(char *str);
 int                   ftp_i_unix_mode_from_string(char *, ftp_bool *);
 
-//                    Managed Buffer
+/*                    Managed Buffer */
 ftp_i_managed_buffer *ftp_i_managed_buffer_new(void);
 #define               ftp_i_managed_buffer_length(buf) (buf->length)
 #define               ftp_i_managed_buffer_cbuf(buf) ((char*)((ftp_i_managed_buffer*)buf)->buffer)
@@ -167,16 +188,19 @@ void                  ftp_i_managed_buffer_print(ftp_i_managed_buffer *);
 char *                ftp_i_managed_buffer_disassemble(ftp_i_managed_buffer *);
 void                  ftp_i_managed_buffer_free(ftp_i_managed_buffer *);
 
-//                    General
+/*                    General */
 void                  ftp_i_strsep(char **, char **, const char *);
 extern long           ftp_i_seconds_between(struct timeval t1, struct timeval t2);
-void                  ftp_i_memcpy(void *, const void *, size_t, size_t);
 extern int            ftp_i_char_is_number(char);
 extern void           ftp_i_strtolower(char *);
 
+/*                    Memory Management */
+void                  ftp_i_memcpy(void *, const void *, size_t, size_t);
+
+
 #ifdef FTP_TLS_ENABLED
 
-//                    FTP/TLS
+/*                    FTP/TLS */
 ftp_status            ftp_i_tls_connect(int, void**, void*, int*);
 void                  ftp_i_tls_disconnect(void **tls_info_ptr);
 ssize_t               ftp_i_tls_write(void *, const void *, size_t);
