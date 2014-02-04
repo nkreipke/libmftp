@@ -410,10 +410,6 @@ ftp_status ftp_size(ftp_connection *c, char *filenm, size_t *size)
 	if (ftp_i_wait_for_triggers(c) != FTP_OK)
 		return FTP_ERROR;
 	if (ftp_i_last_signal_was_error(c)) {
-		if (c->last_signal == FTP_SIGNAL_FILE_ERROR) {
-			c->error = FTP_ENOTFOUND;
-			return FTP_ERROR;
-		}
 		//maybe this server does not support the SIZE command.
 		//we will try to get the size from a directory listing
 		ftp_content_listing *content = ftp_contents_of_directory(c, NULL);
