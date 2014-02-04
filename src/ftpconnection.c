@@ -322,6 +322,8 @@ ftp_status ftp_i_set_transfer_type(ftp_connection *c, ftp_transfer_type tt)
 		ftp_i_connection_set_error(c, FTP_ESERVERCAPABILITIES);
 		return FTP_ERROR;
 	}
+
+	return FTP_OK;
 }
 
 int ftp_i_enter_pasv_old(ftp_connection *c)
