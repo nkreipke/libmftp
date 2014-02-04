@@ -258,6 +258,8 @@ ftp_i_managed_buffer *ftp_i_managed_buffer_new(void)
 
 ftp_status ftp_i_managed_buffer_append(ftp_i_managed_buffer *buf, void *data, unsigned long length)
 {
+	if (!buf)
+		return FTP_ERROR;
 	if (buf->length + length + 1 > buf->size) {
 		//we create 1000 bytes extra so realloc is used less often
 		unsigned long newsiz = buf->length + length + 1000;
@@ -327,6 +329,8 @@ char *ftp_i_managed_buffer_disassemble(ftp_i_managed_buffer *buf)
 
 void ftp_i_managed_buffer_free(ftp_i_managed_buffer *buf)
 {
+	if (!buf)
+		return;
 	ftp_i_free(buf->buffer);
 	ftp_i_free(buf);
 }

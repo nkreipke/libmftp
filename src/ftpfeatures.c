@@ -152,21 +152,20 @@ again:
 		}
 		return NULL;
 	}
-//    ftp_i_managed_buffer_print(buffer);
+
 	ftp_content_listing *content = NULL;
-	int itemscount = 1;
+	int itemscount, error;
 	if (use_mlsd) {
-		content = ftp_i_read_mlsd_answer(buffer, &itemscount);
+		content = ftp_i_read_mlsd_answer(buffer, &itemscount, &error);
 	} else {
 		c->_current_features->use_mlsd = ftp_bfalse;
-		content = ftp_i_read_list_answer(buffer, &itemscount);
+		content = ftp_i_read_list_answer(buffer, &itemscount, &error);
 	}
 
 	ftp_i_managed_buffer_free(buffer);
 
-	if (!content && itemscount != 0) {
-		if (itemscount != 0)
-			c->error = FTP_ECOULDNOTALLOCATE;
+	if (!content) {
+		ftp_i_connection_set_error(c, error);
 		return NULL;
 	}
 

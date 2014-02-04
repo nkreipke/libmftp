@@ -162,25 +162,11 @@ ftp_bool ftp_i_applyfacts(char *factlist, ftp_file_facts *facts)
 	return ftp_btrue;
 }
 
-ftp_content_listing *ftp_i_read_mlsd_answer(ftp_i_managed_buffer *buffer, int *items_count)
+ftp_content_listing *ftp_i_read_mlsd_answer(ftp_i_managed_buffer *buffer, int *items_count, int *error)
 {
 	int itemscount = 0;
 	ftp_content_listing *start = NULL, *current = NULL;
-/*#ifdef FTP_SERVER_VERBOSE
-#ifdef FTP_DEBUG
-	printf("*** DEBUG: searching for \\n \\r and \\r\\n\n");
-	char *tmp = (char*)buffer->buffer;
-	for (int i = 0; *tmp; tmp++, i++)
-	{
-		if (*tmp == '\r')
-			printf("*** DEBUG: found \\r at %i\n",i);
-		if (*tmp == '\n')
-			printf("*** DEBUG: found \\n at %i\n",i);
-		if (*tmp == '\r' && *(tmp+1) == '\n')
-			printf("*** DEBUG: found CRLF at %i\n",i);
-	}
-#endif
-#endif*/
+
 #ifdef FTP_CONTENTLISTING_VERBOSE
 	printf("Content Listing Raw data following. -------------\n");
 	ftp_i_managed_buffer_print(buffer);
@@ -189,6 +175,7 @@ ftp_content_listing *ftp_i_read_mlsd_answer(ftp_i_managed_buffer *buffer, int *i
 	for_sep(fs, (char*)buffer->buffer, FTP_CNL, {
 		if (strlen(fs) == 0)
 			continue;
+
 		int i = 0;
 		while (*(fs+i) != ' ') {
 			if (*(fs+i) == '\0')
@@ -204,8 +191,10 @@ ftp_content_listing *ftp_i_read_mlsd_answer(ftp_i_managed_buffer *buffer, int *i
 		}
 		if (!current) {
 			ftp_i_free(fs);
+			*error = FTP_ECOULDNOTALLOCATE;
 			return NULL;
 		}
+
 		char *filename = fs + i + 1;
 		char server_used_wrong_separator = 1;
 		for (char *ptr = filename; *ptr; ptr++) {
@@ -219,11 +208,20 @@ ftp_content_listing *ftp_i_read_mlsd_answer(ftp_i_managed_buffer *buffer, int *i
 		if (server_used_wrong_separator)
 			FTP_WARN("[MLSD] feature does not comply with specification: uses \\n instead of \\r\\n\n");
 		ftp_i_strcpy_malloc(current->filename, fs + i + 1);
+
+		if (!current->filename) {
+			FTP_ERR("Could not allocate filename buffer.\n");
+			ftp_free(start);
+			ftp_i_free(fs);
+			*error = FTP_ECOULDNOTALLOCATE;
+			return NULL;
+		}
 		*(fs+i-1) = '\0';
 		if (!ftp_i_applyfacts(fs,&(current->facts))) {
 			FTP_ERR("[MLSD] Invalid answer.\n");
 			ftp_free(start);
 			ftp_i_free(fs);
+			*error = FTP_EINVALID;
 			return NULL;
 		}
 		itemscount++;
@@ -234,28 +232,31 @@ ftp_content_listing *ftp_i_read_mlsd_answer(ftp_i_managed_buffer *buffer, int *i
 	return start;
 }
 
-ftp_content_listing *ftp_i_read_list_answer(ftp_i_managed_buffer *buffer, int *items_count)
+ftp_content_listing *ftp_i_read_list_answer(ftp_i_managed_buffer *buffer, int *items_count, int *error)
 {
 #ifndef FTPPARSE_H
-	*items_count = 1;
+	*error = FTP_ENOTSUPPORTED;
 	return NULL;
 #endif
+
 	int itemscount = 0;
 	ftp_content_listing *start = NULL, *current = NULL;
 	ftp_i_managed_buffer *filename_buffer;
-	//LIST is supported for compatibility reasons.
-	//this uses ftpparse (http://cr.yp.to/ftpparse.html) by D. J. Bernstein.
+	/* LIST is supported for compatibility reasons.
+	 * this uses ftpparse (http://cr.yp.to/ftpparse.html) by D. J. Bernstein. */
 	char *buf = buffer->buffer;
-	//i don't know whether there are servers that terminate lines with LF only,
-	//so this will check it.
+	/* I don't know whether there are servers that terminate lines with LF only,
+	 * so this will check it. */
 	int p = 0;
+
 #ifdef FTP_CONTENTLISTING_VERBOSE
 	printf("Content Listing Raw data following. -------------\n");
 	ftp_i_managed_buffer_print(buffer);
 #endif
+
 	while (*(buf+p) != '\n') {
 		if (*(buf+p) == '\0')
-			//this is only one line, so it does not matter.
+			/* this is only one line, so it does not matter. */
 			break;
 		p++;
 	}
@@ -276,10 +277,18 @@ ftp_content_listing *ftp_i_read_list_answer(ftp_i_managed_buffer *buffer, int *i
 			}
 			if (!current) {
 				ftp_i_free(fs);
+				*error = FTP_ECOULDNOTALLOCATE;
 				return NULL;
 			}
+
 			filename_buffer = ftp_i_managed_buffer_new();
-			ftp_i_managed_buffer_append(filename_buffer, (void*)fp.name, fp.namelen);
+			if (ftp_i_managed_buffer_append(filename_buffer, (void*)fp.name, fp.namelen) != FTP_OK) {
+				ftp_free(start);
+				ftp_i_managed_buffer_free(filename_buffer);
+				ftp_i_free(fs);
+				*error = FTP_ECOULDNOTALLOCATE;
+				return NULL;
+			}
 			current->filename = ftp_i_managed_buffer_disassemble(filename_buffer);
 			if (fp.unix_permissions[0] != 0) {
 				ftp_bool dir;

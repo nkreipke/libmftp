@@ -167,8 +167,8 @@ ftp_date              ftp_i_date_from_unix_timestamp(unsigned long);
 /*                    Content Listing Parsing */
 ftp_content_listing  *ftp_i_mkcontentlisting(void);
 ftp_content_listing  *ftp_i_applyclfilter(ftp_content_listing *, int *);
-ftp_content_listing  *ftp_i_read_mlsd_answer(ftp_i_managed_buffer *, int *);
-ftp_content_listing  *ftp_i_read_list_answer(ftp_i_managed_buffer *, int *);
+ftp_content_listing  *ftp_i_read_mlsd_answer(ftp_i_managed_buffer *, int *, int *);
+ftp_content_listing  *ftp_i_read_list_answer(ftp_i_managed_buffer *, int *, int *);
 ftp_bool			  ftp_i_clfilter_keepthis(ftp_content_listing *);
 ftp_bool              ftp_i_applyfact(char *, ftp_file_facts *, unsigned long);
 ftp_bool              ftp_i_applyfacts(char *, ftp_file_facts *);
