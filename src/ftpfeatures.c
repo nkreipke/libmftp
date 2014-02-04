@@ -265,17 +265,20 @@ ftp_file *ftp_fopen(ftp_connection *c, char *filenm, ftp_activity activity, unsi
 	f->error = &(fc->error);
 
 	if (ftp_i_set_transfer_type(fc, ftp_tt_binary) != FTP_OK) {
-		if (fc != c)
+		if (fc != c) {
+			c->error = fc->error;
 			ftp_close(fc);
+		}
 		ftp_i_free(f);
 		return NULL;
 	}
 
 	int r = ftp_i_establish_data_connection(fc);
 	if (r < 0) {
-		c->error = fc->error;
-		if (fc != c)
+		if (fc != c) {
+			c->error = fc->error;
 			ftp_close(fc);
+		}
 		ftp_i_free(f);
 		return NULL;
 	}
