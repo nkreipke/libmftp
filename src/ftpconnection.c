@@ -299,6 +299,28 @@ ftp_status ftp_send(ftp_connection *c, char *signal)
 	return FTP_OK;
 }
 
+ftp_status ftp_i_set_transfer_type(ftp_connection *c, ftp_transfer_type tt)
+{
+	if (tt == ftp_tt_undefined)
+		FTP_WARN("BUG: called with tt = undefined\n");
+	if (c->_transfer_type == tt)
+		return FTP_OK;
+
+	ftp_i_set_input_trigger(c, FTP_SIGNAL_COMMAND_OKAY);
+	switch (tt) {
+	case ftp_tt_binary:
+		ftp_send(c, FTP_CTYPE FTP_CTYPE_BINARY FTP_CENDL);
+	default:
+		ftp_send(c, FTP_CTYPE FTP_CTYPE_ASCII FTP_CENDL);
+	}
+	if (ftp_i_wait_for_triggers(c) != FTP_OK)
+		return FTP_ERROR;
+	if (ftp_i_last_signal_was_error(c)) {
+		c->error = FTP_EUNEXPECTED;
+		return FTP_ERROR;
+	}
+}
+
 int ftp_i_enter_pasv_old(ftp_connection *c)
 {
 	int r;

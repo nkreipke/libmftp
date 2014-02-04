@@ -110,6 +110,7 @@ typedef struct {
 	int _input_trigger_signals[FTP_TRIGGER_MAX];
 	struct timeval _wait_start;
 	char *_mc_user, *_mc_pass;
+	ftp_transfer_type _transfer_type;
 	ftp_bool _internal_error_signal:1;
 	ftp_bool _mc_enabled:1;
 	ftp_bool _temporary:1;

@@ -135,6 +135,7 @@ FTP_I_BEGIN_DECLS
 /*                    Read/Write */
 ssize_t               ftp_i_write(ftp_connection *, int, const void *, size_t);
 ssize_t               ftp_i_read(ftp_connection *, int, void *, size_t);
+ftp_status            ftp_i_set_transfer_type(ftp_connection *, ftp_transfer_type);
 
 /*                    Input Thread */
 int                   ftp_i_establish_input_thread(ftp_connection *);

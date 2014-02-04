@@ -74,6 +74,12 @@ typedef struct {
 } ftp_perm;
 #endif
 
+typedef enum {
+	ftp_tt_undefined,
+	ftp_tt_ascii,
+	ftp_tt_binary
+} ftp_transfer_type;
+
 #ifndef FTP_I_DECLS
 #define FTP_I_DECLS
 #ifdef __cplusplus
