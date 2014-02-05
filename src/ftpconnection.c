@@ -333,6 +333,7 @@ ftp_status ftp_i_set_transfer_type(ftp_connection *c, ftp_transfer_type tt)
 		return FTP_ERROR;
 	}
 
+	c->_transfer_type = tt;
 	return FTP_OK;
 }
 
