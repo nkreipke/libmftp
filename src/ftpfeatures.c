@@ -215,51 +215,14 @@ ftp_file *ftp_fopen(ftp_connection *c, char *filenm, ftp_activity activity, unsi
 	f->eof = ftp_bfalse;
 	f->parent = NULL;
 	f->activity = activity;
-	ftp_connection *fc = NULL;
-	if (c->_data_connection != 0 || (c->file_transfer_second_connection && !c->_temporary)) {
-		//the connection is busy
-		if (c->_mc_enabled) {
-			//multiple connections are enabled
-			//we can try to establish a new connection here
-			//if this fails, FTP_ENOTREADY is returned.
-			if ((fc = ftp_open(c->_host, c->_port, ftp_i_open_getsecurity(c))) == NULL) {
-				c->error = FTP_ENOTREADY;
-				free(f);
-				return NULL;
-			}
-			fc->_temporary = ftp_btrue;
-			if (c->_mc_user && c->_mc_pass) {
-				//authentication is required
-				if (ftp_auth(fc, c->_mc_user, c->_mc_pass, ftp_bfalse) != FTP_OK) {
-					c->error = FTP_ENOTREADY;
-					free(f);
-					return NULL;
-				}
-			}
-			//grab current directory
-			if (ftp_reload_cur_directory(c) != FTP_OK) {
-				c->error = FTP_ENOTREADY;
-				free(f);
-				return NULL;
-			}
-			//cwd into current directory
-			if (ftp_change_cur_directory(fc, c->cur_directory) != FTP_OK) {
-				c->error = FTP_ENOTREADY;
-				free(f);
-				return NULL;
-			}
-			//new connection is ready!
-			f->parent = c;
-			fc->_current_features = c->_current_features;
-		} else {
-			c->error = FTP_ENOTREADY;
-			free(f);
-			return NULL;
-		}
-	} else {
-		//the connection is ready and can be used.
-		fc = c;
+
+	ftp_connection *fc;
+	if ((fc = ftp_i_dequeue_usable_connection(c, c->file_transfer_second_connection, ftp_btrue)) == NULL) {
+		c->error = FTP_ENOTREADY;
+		ftp_i_free(f);
+		return NULL;
 	}
+
 	f->c = fc;
 	f->error = &(fc->error);
 
@@ -339,8 +302,9 @@ void ftp_fclose(ftp_file *file)
 		return;
 	if (file->c->_data_connection != 0)
 		ftp_i_close_data_connection(file->c);
-	if (file->parent)
-		ftp_close(file->c);
+
+	ftp_i_mark_as_unused(file->c);
+
 	free(file);
 }
 

@@ -90,6 +90,7 @@
 #endif
 
 #define ftp_i_is_timed_out(errno) (errno == EAGAIN || errno == EWOULDBLOCK)
+#define ftp_i_connection_is_ready(c) (c->status == FTP_UP)
 #define ftp_i_connection_is_waiting(c) (c->status == FTP_WAITING)
 #define ftp_i_connection_set_error(c,err) c->error = err
 #define ftp_i_connection_is_down(c) (c->status == FTP_DOWN)
@@ -135,6 +136,9 @@ FTP_I_BEGIN_DECLS
 /*                    Read/Write */
 ssize_t               ftp_i_write(ftp_connection *, int, const void *, size_t);
 ssize_t               ftp_i_read(ftp_connection *, int, void *, size_t);
+
+/*                    Connection */
+void                  ftp_i_close(ftp_connection *);
 ftp_status            ftp_i_set_transfer_type(ftp_connection *, ftp_transfer_type);
 
 /*                    Input Thread */
@@ -151,6 +155,10 @@ int                   ftp_i_input_sign(char *);
 ftp_status            ftp_i_establish_data_connection(ftp_connection *);
 ftp_status            ftp_i_prepare_data_connection(ftp_connection *);
 void                  ftp_i_close_data_connection(ftp_connection *);
+
+/*                    Connection Queueing */
+ftp_connection *      ftp_i_dequeue_usable_connection(ftp_connection *, ftp_bool, ftp_bool);
+void                  ftp_i_mark_as_unused(ftp_connection *);
 
 /*                    PASV */
 int                   ftp_i_enter_pasv_old(ftp_connection *c);
@@ -170,7 +178,7 @@ ftp_content_listing  *ftp_i_mkcontentlisting(void);
 ftp_content_listing  *ftp_i_applyclfilter(ftp_content_listing *, int *);
 ftp_content_listing  *ftp_i_read_mlsd_answer(ftp_i_managed_buffer *, int *, int *);
 ftp_content_listing  *ftp_i_read_list_answer(ftp_i_managed_buffer *, int *, int *);
-ftp_bool			  ftp_i_clfilter_keepthis(ftp_content_listing *);
+ftp_bool              ftp_i_clfilter_keepthis(ftp_content_listing *);
 ftp_bool              ftp_i_applyfact(char *, ftp_file_facts *, unsigned long);
 ftp_bool              ftp_i_applyfacts(char *, ftp_file_facts *);
 ftp_file_type         ftp_i_strtotype(char *str);

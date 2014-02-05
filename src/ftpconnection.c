@@ -195,7 +195,7 @@ ftp_connection *ftp_open(char *host, unsigned int port, ftp_security sec)
 	return NULL;
 }
 
-void ftp_close(ftp_connection *c)
+void ftp_i_close(ftp_connection *c)
 {
 	if (c->status != FTP_DOWN) {
 		if (c->_data_connection)
@@ -221,6 +221,16 @@ void ftp_close(ftp_connection *c)
 #endif
 //    ftp_i_free(c->host);
 	free(c);
+}
+
+void ftp_close(ftp_connection *c)
+{
+	if (c->_child) {
+		FTP_LOG("Closing a queued connection.\n");
+		ftp_close(c->_child);
+	}
+
+	ftp_i_close(c);
 }
 
 #ifdef FTP_TLS_ENABLED
