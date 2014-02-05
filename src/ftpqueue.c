@@ -74,7 +74,8 @@ void ftp_i_queue_try_free(ftp_connection *c, int count)
 		return;
 
 	while (count > 0 && current) {
-		if (ftp_i_connection_is_ready(current)) {
+		if (ftp_i_connection_is_ready(current) &&
+			!current->_data_connection) {
 			current = ftp_i_remove_connection_from_queue(current);
 			count--;
 			FTP_LOG("Removed unused connection from queue.\n");
