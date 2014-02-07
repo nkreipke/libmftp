@@ -35,6 +35,10 @@
 
 int ftp_error = 0;
 
+#define FTP_TLS_OK 0
+#define FTP_TLS_NOTSUPPORTED 1
+#define FTP_TLS_ERROR 2
+
 
 int ftp_i_socket_connect(char *destination, unsigned int port, unsigned long timeout)
 {
@@ -81,60 +85,55 @@ int ftp_connect(ftp_connection *c, char *host, unsigned int port)
 
 #ifdef FTP_TLS_ENABLED
 
-int ftp_connect_tls_privacy(ftp_connection *c)
+int ftp_i_tls_set_protection_level(ftp_connection *c)
 {
-	//this sets data connection protection to private
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_COMMAND_OKAY);
-	ftp_send(c, FTP_CPBSZ " 0" FTP_CENDL);
-	if (ftp_i_wait_for_triggers(c) != FTP_OK)
-		return -1;
-	if (ftp_i_last_signal_was_error(c))
-		return -1;
+
+	if (ftp_i_send_command_and_wait_for_triggers(c, FTP_CPBSZ, FTP_CPBSZ_NULL, NULL, FTP_EUNEXPECTED, NULL) != FTP_OK)
+		return FTP_TLS_ERROR;
+
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_COMMAND_OKAY);
-	ftp_send(c, FTP_CPROT " P" FTP_CENDL);
-	if (ftp_i_wait_for_triggers(c) != FTP_OK)
-		return -1;
-	if (ftp_i_last_signal_was_error(c))
-		return -1;
-	//data connection protection level is now 'private'
-	return 0;
+
+	if (ftp_i_send_command_and_wait_for_triggers(c, FTP_CPROT, FTP_CPROT_PRIVATE, NULL, FTP_EUNEXPECTED, NULL) != FTP_OK)
+		return FTP_TLS_ERROR;
+
+	return FTP_TLS_OK;
 }
 
-int ftp_connect_tls(ftp_connection *c)
+int ftp_i_tls_init(ftp_connection *c)
 {
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_TLS_SUCCESSFUL);
-	ftp_send(c, FTP_CAUTHTLS FTP_CENDL);
+
+	ftp_bool remote_error;
+
 	c->_disable_input_thread = ftp_btrue;
-	if (ftp_i_wait_for_triggers(c) != FTP_OK) {
-		//reset error (connection may be used nevertheless)
-		c->error = 0;
-		return -1;
+	if (ftp_i_send_command_and_wait_for_triggers(c, FTP_CAUTHTLS, NULL, NULL, 0, &remote_error) != FTP_OK) {
+		if (remote_error)
+			return FTP_TLS_NOTSUPPORTED;
+		else
+			return FTP_TLS_ERROR;
 	}
-	if (ftp_i_last_signal_was_error(c))
-		return -1;
-	//auth tls successful!
-	//temporarily turn off input thread:
-	ftp_i_release_input_thread(c);
-	//do handshake:
-	if (ftp_i_tls_connect(c->_sockfd, &c->_tls_info, NULL, &c->error) != FTP_OK) {
-		//reset error (connection may be used nevertheless)
-		c->error = 0;
-		return -1;
-	}
-	//open new input thread:
+
+	/* Temporarily turn off input thread for handshake. */
+	if (ftp_i_release_input_thread(c) != 0)
+		return FTP_TLS_ERROR;
+
+	if (ftp_i_tls_connect(c->_sockfd, &c->_tls_info, NULL, &c->error) != FTP_OK)
+		return FTP_TLS_ERROR;
+
 	c->_disable_input_thread = ftp_bfalse;
-	ftp_i_establish_input_thread(c);
-	//tls enabled!
-	return ftp_connect_tls_privacy(c);
+	if (ftp_i_establish_input_thread(c) != 0)
+		return FTP_TLS_ERROR;
+
+	return ftp_i_tls_set_protection_level(c);
 }
 
-int ftp_connect_tls_data_connection(ftp_connection *c)
+int ftp_i_tls_init_data_connection(ftp_connection *c)
 {
-	//do a handshake on the data connection
 	if (ftp_i_tls_connect(c->_data_connection, &c->_tls_info_dc, c->_tls_info, &c->error) != FTP_OK)
-		return -1;
-	FTP_LOG("SSL handshake on data connection successful.\n");
-	return 0;
+		return FTP_TLS_ERROR;
+
+	return FTP_TLS_OK;
 }
 
 #endif
@@ -175,10 +174,14 @@ ftp_connection *ftp_open(char *host, unsigned int port, ftp_security sec)
 #ifdef FTP_TLS_ENABLED
 		//check TLS
 		if (sec != ftp_security_none) {
-			int tls = ftp_connect_tls(c);
-			if (tls != 0 && sec == ftp_security_always) {
-				//tls connection not successful but security=always
-				//abort connection
+			int tls = ftp_i_tls_init(c);
+			if (tls == FTP_TLS_ERROR) {
+				ftp_error = c->error;
+				ftp_close(c);
+				return NULL;
+			}
+			if (tls == FTP_TLS_NOTSUPPORTED && sec == ftp_security_always) {
+				/* TLS is not supported but security is set to always. */
 				ftp_error = FTP_ESECURITY;
 				ftp_close(c);
 				return NULL;
@@ -195,36 +198,79 @@ ftp_connection *ftp_open(char *host, unsigned int port, ftp_security sec)
 	return NULL;
 }
 
+ftp_status ftp_i_establish_data_connection(ftp_connection *c)
+{
+	int sockfd;
+
+	int pasv_port = ftp_i_enter_pasv(c);
+	if (pasv_port < 0)
+		return FTP_ERROR;
+
+	sockfd = ftp_i_socket_connect(c->_host, pasv_port, STANDARD_TIMEOUT);
+	if (sockfd < 0) {
+		ftp_i_connection_set_error(c, FTP_ECONNECTION);
+		return FTP_ERROR;
+	}
+
+	c->_data_connection = sockfd;
+	return FTP_OK;
+}
+
+ftp_status ftp_i_prepare_data_connection(ftp_connection *c)
+{
+#ifdef FTP_TLS_ENABLED
+	if (c->_tls_info) {
+		if (ftp_i_tls_init_data_connection(c) != FTP_TLS_OK)
+			return FTP_ERROR;
+	}
+#endif
+	return FTP_OK;
+}
+
+void ftp_i_close_data_connection(ftp_connection *c)
+{
+#ifdef FTP_TLS_ENABLED
+	ftp_i_tls_disconnect(&c->_tls_info_dc);
+#endif
+	shutdown(c->_data_connection,SHUT_WR);
+	close(c->_data_connection);
+	c->_data_connection=0;
+}
+
 void ftp_i_close(ftp_connection *c)
 {
 	if (c->status != FTP_DOWN) {
 		if (c->_data_connection)
 			ftp_i_close_data_connection(c);
 		c->_termination_signal = ftp_btrue;
-		//be nice and say goodbye to server
+
 		ftp_i_set_input_trigger(c, FTP_SIGNAL_GOODBYE);
 		ftp_send(c, FTP_CQUIT FTP_CENDL);
 		ftp_i_wait_for_triggers(c);
-		//no need for error handling as the connection will be closed anyways.
+		/* No need for error handling as the connection will be closed anyways. */
+
 		c->status = FTP_DOWN;
 		close(c->_sockfd);
 		ftp_i_release_input_thread(c);
 	}
+
 	if (c->_last_answer_buffer)
 		ftp_i_managed_buffer_free(c->_last_answer_buffer);
 	ftp_i_free(c->cur_directory);
 	ftp_i_free(c->_mc_pass);
 	ftp_i_free(c->_mc_user);
 	ftp_i_free(c->_host);
+
 #ifdef FTP_SERVER_VERBOSE
 	if (c->verbose_command_buffer)
 		ftp_i_managed_buffer_free(c->verbose_command_buffer);
 #endif
+
 #ifdef FTP_TLS_ENABLED
 	ftp_i_tls_disconnect(&(c->_tls_info));
 	ftp_i_tls_disconnect(&(c->_tls_info_dc));
 #endif
-//    ftp_i_free(c->host);
+
 	free(c);
 }
 
@@ -449,47 +495,4 @@ int ftp_i_enter_pasv(ftp_connection *c)
 	}
 
 	return answer.tcp_port;
-}
-
-ftp_status ftp_i_establish_data_connection(ftp_connection *c)
-{
-	int sockfd;
-	//enter pasv
-	int pasv_port = ftp_i_enter_pasv(c);
-	if (pasv_port < 0)
-		return FTP_ERROR;
-	//open socket
-	sockfd = ftp_i_socket_connect(c->_host, pasv_port, STANDARD_TIMEOUT);
-	if (sockfd < 0) {
-		ftp_i_connection_set_error(c, FTP_ECONNECTION);
-		return FTP_ERROR;
-	}
-
-	FTP_LOG("data connection socket file descriptor is %i\n",sockfd);
-	c->_data_connection = sockfd;
-	return FTP_OK;
-}
-
-ftp_status ftp_i_prepare_data_connection(ftp_connection *c)
-{
-#ifdef FTP_TLS_ENABLED
-	if (c->_tls_info) {
-		//enable tls for this connection
-		if (ftp_connect_tls_data_connection(c) != 0) {
-			c->error = FTP_ESECURITY;
-			return FTP_ERROR;
-		}
-	}
-#endif
-	return FTP_OK;
-}
-
-void ftp_i_close_data_connection(ftp_connection *c)
-{
-#ifdef FTP_TLS_ENABLED
-	ftp_i_tls_disconnect(&c->_tls_info_dc);
-#endif
-	shutdown(c->_data_connection,SHUT_WR);
-	close(c->_data_connection);
-	c->_data_connection=0;
 }

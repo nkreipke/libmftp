@@ -42,7 +42,9 @@ FTP_I_END_DECLS
 
 #define FTP_CAUTHTLS "AUTH TLS"
 #define FTP_CPBSZ "PBSZ"
+#define FTP_CPBSZ_NULL "0"
 #define FTP_CPROT "PROT"
+#define FTP_CPROT_PRIVATE "P"
 
 #define FTP_CUSER "USER"
 #define FTP_CPASS "PASS"
