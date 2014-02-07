@@ -328,16 +328,20 @@ ftp_status ftp_send(ftp_connection *c, char *signal)
 
 ftp_status ftp_i_send_command_and_wait_for_triggers(ftp_connection *c, char *command, char *arg1, char *arg2, int error, ftp_bool *remote_err)
 {
-	ftp_send(c, command);
+	if (ftp_send(c, command) != FTP_OK)
+		return FTP_ERROR;
 	if (arg1) {
-		ftp_send(c, " ");
-		ftp_send(c, arg1);
+		if (ftp_send(c, " ") != FTP_OK ||
+			ftp_send(c, arg1) != FTP_OK)
+			return FTP_ERROR;
 		if (arg2) {
-			ftp_send(c, " ");
-			ftp_send(c, arg2);
+			if (ftp_send(c, " ") != FTP_OK ||
+				ftp_send(c, arg2) != FTP_OK)
+				return FTP_ERROR;
 		}
 	}
-	ftp_send(c, FTP_CENDL);
+	if (ftp_send(c, FTP_CENDL) != FTP_OK)
+		return FTP_ERROR;
 
 	if (ftp_i_wait_for_triggers(c) != FTP_OK) {
 		if (remote_err)
@@ -363,21 +367,20 @@ ftp_status ftp_i_set_transfer_type(ftp_connection *c, ftp_transfer_type tt)
 		return FTP_OK;
 
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_COMMAND_OKAY);
+
+	ftp_status success;
+
 	switch (tt) {
 	case ftp_tt_binary:
-		ftp_send(c, FTP_CTYPE FTP_CTYPE_BINARY FTP_CENDL);
+		success = ftp_i_send_command_and_wait_for_triggers(c, FTP_CTYPE, FTP_CTYPE_BINARY, NULL, FTP_ESERVERCAPABILITIES, NULL);
 		break;
 	default:
-		ftp_send(c, FTP_CTYPE FTP_CTYPE_ASCII FTP_CENDL);
+		success = ftp_i_send_command_and_wait_for_triggers(c, FTP_CTYPE, FTP_CTYPE_ASCII, NULL, FTP_ESERVERCAPABILITIES, NULL);
 		break;
 	}
 
-	if (ftp_i_wait_for_triggers(c) != FTP_OK)
+	if (success == FTP_ERROR)
 		return FTP_ERROR;
-	if (ftp_i_last_signal_was_error(c)) {
-		ftp_i_connection_set_error(c, FTP_ESERVERCAPABILITIES);
-		return FTP_ERROR;
-	}
 
 	c->_transfer_type = tt;
 	return FTP_OK;
@@ -388,13 +391,10 @@ int ftp_i_enter_pasv_old(ftp_connection *c)
 	int r;
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_ENTERING_PASSIVE_MODE);
 	c->_last_answer_lock_signal = FTP_SIGNAL_ENTERING_PASSIVE_MODE;
-	ftp_send(c, FTP_CPASV FTP_CENDL);
-	if (ftp_i_wait_for_triggers(c) != FTP_OK)
+
+	if (ftp_i_send_command_and_wait_for_triggers(c, FTP_CPASV, NULL, NULL, FTP_EUNEXPECTED, NULL) != FTP_OK)
 		return -1;
-	if (ftp_i_last_signal_was_error(c)) {
-		c->error = FTP_EUNEXPECTED;
-		return -1;
-	}
+
 	char answer[1200];
 	r = ftp_i_textfrombrackets(ftp_i_managed_buffer_cbuf(c->_last_answer_buffer), answer, 1200);
 	if (r != 0) {
@@ -424,14 +424,14 @@ int ftp_i_enter_pasv(ftp_connection *c)
 
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_ENTERING_EXTENDED_PASSIVE_MODE);
 	c->_last_answer_lock_signal = FTP_SIGNAL_ENTERING_EXTENDED_PASSIVE_MODE;
-	ftp_send(c, FTP_CEPSV FTP_CENDL);
-	if (ftp_i_wait_for_triggers(c) != FTP_OK) {
-		return -1;
-	}
-	if (ftp_i_last_signal_was_error(c))
-		//maybe the server does not support epsv
-		//try standard pasv
+
+	ftp_bool remote_error;
+	if (ftp_i_send_command_and_wait_for_triggers(c, FTP_CEPSV, NULL, NULL, 0, &remote_error) != FTP_OK) {
+		if (!remote_error)
+			return -1;
+		/* Server may not support EPSV */
 		return ftp_i_enter_pasv_old(c);
+	}
 
 	//epasv syntax: 229 foo (|||port|)
 	char ex[1200];

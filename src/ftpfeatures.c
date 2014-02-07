@@ -221,7 +221,7 @@ ftp_file *ftp_fopen(ftp_connection *c, char *filenm, ftp_activity activity, unsi
 		ftp_i_establish_data_connection(fc) != FTP_OK) {
 		if (fc != c) {
 			c->error = fc->error;
-			ftp_close(fc);
+			ftp_i_mark_as_unused(fc);
 		}
 		ftp_i_free(f);
 		return NULL;

@@ -50,7 +50,7 @@ FTP_I_END_DECLS
 #define FTP_CPASV "PASV"
 #define FTP_CEPSV "EPSV"
 
-#define FTP_CTYPE "TYPE "
+#define FTP_CTYPE "TYPE"
 #define FTP_CTYPE_ASCII "A"
 #define FTP_CTYPE_BINARY "I"
 
