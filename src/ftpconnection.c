@@ -256,16 +256,14 @@ void ftp_i_close(ftp_connection *c)
 		ftp_i_release_input_thread(c);
 	}
 
-	if (c->_last_answer_buffer)
-		ftp_i_managed_buffer_free(c->_last_answer_buffer);
+	ftp_i_managed_buffer_free(c->_last_answer_buffer);
 	ftp_i_free(c->cur_directory);
 	ftp_i_free(c->_mc_pass);
 	ftp_i_free(c->_mc_user);
 	ftp_i_free(c->_host);
 
 #ifdef FTP_SERVER_VERBOSE
-	if (c->verbose_command_buffer)
-		ftp_i_managed_buffer_free(c->verbose_command_buffer);
+	ftp_i_managed_buffer_free(c->verbose_command_buffer);
 #endif
 
 #ifdef FTP_TLS_ENABLED

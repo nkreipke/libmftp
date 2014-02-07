@@ -141,7 +141,7 @@ ftp_bool ftp_i_process_input(ftp_connection *c, ftp_i_managed_buffer *buf)
 		// Store the string attached to the signal number.
 		if (c->_last_answer_buffer) {
 			FTP_WARN("BUG: _last_answer_buffer is not empty.\n");
-			ftp_i_managed_buffer_free((ftp_i_managed_buffer*)c->_last_answer_buffer);
+			ftp_i_managed_buffer_free(c->_last_answer_buffer);
 		}
 		ftp_i_managed_buffer *last_answer = ftp_i_managed_buffer_new();
 		if (ftp_i_managed_buffer_memcpy(last_answer, buf, 4, ftp_i_managed_buffer_length(buf) - 4) != FTP_OK) {

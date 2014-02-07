@@ -40,10 +40,19 @@
 #define FTP_INTERNAL_SIGNAL_ERROR 1000
 
 
-#define ftp_i_free(ptr) if (ptr != NULL) { \
-	free(ptr); \
-	ptr=NULL; \
-}
+#define ftp_i_free(ptr) do { \
+	if (ptr != NULL) { \
+		free(ptr); \
+		ptr=NULL; \
+	} \
+} while(0)
+
+#define ftp_i_managed_buffer_free(buf) do { \
+	if (buf != NULL) { \
+		ftp_i_managed_buffer_release((ftp_i_managed_buffer*)buf); \
+		buf = NULL; \
+	} \
+} while(0)
 
 /**
  * Copies memory and null-terminates the destination.
@@ -197,7 +206,7 @@ ftp_status            ftp_i_managed_buffer_memcpy(ftp_i_managed_buffer *, const 
 ftp_status            ftp_i_managed_buffer_duplicate(ftp_i_managed_buffer *, const ftp_i_managed_buffer *);
 void                  ftp_i_managed_buffer_print(ftp_i_managed_buffer *, ftp_bool);
 char *                ftp_i_managed_buffer_disassemble(ftp_i_managed_buffer *);
-void                  ftp_i_managed_buffer_free(ftp_i_managed_buffer *);
+void                  ftp_i_managed_buffer_release(ftp_i_managed_buffer *);
 
 /*                    General */
 void                  ftp_i_strsep(char **, char **, const char *);

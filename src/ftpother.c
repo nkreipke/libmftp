@@ -354,7 +354,7 @@ char *ftp_i_managed_buffer_disassemble(ftp_i_managed_buffer *buf)
 	return b;
 }
 
-void ftp_i_managed_buffer_free(ftp_i_managed_buffer *buf)
+void ftp_i_managed_buffer_release(ftp_i_managed_buffer *buf)
 {
 	if (!buf)
 		return;

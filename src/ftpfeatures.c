@@ -45,7 +45,7 @@ ftp_status ftp_reload_cur_directory(ftp_connection *c)
 
 	r = ftp_i_set_pwd_information(ftp_i_managed_buffer_cbuf(c->_last_answer_buffer), &c->cur_directory);
 	ftp_i_managed_buffer_free(c->_last_answer_buffer);
-	c->_last_answer_buffer = NULL;
+
 	if (r != 0) {
 		c->error = r;
 		return FTP_ERROR;
@@ -411,8 +411,8 @@ ftp_status ftp_size(ftp_connection *c, char *filenm, size_t *size)
 		sizstr[i] = *(answer+i);
 	sizstr[i] = '\0';
 	*size = strtoul(sizstr, (char**)NULL, 10);
+
 	ftp_i_managed_buffer_free(c->_last_answer_buffer);
-	c->_last_answer_buffer = NULL;
 	return FTP_OK;
 }
 
