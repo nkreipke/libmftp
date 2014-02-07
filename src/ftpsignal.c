@@ -43,7 +43,7 @@ int ftp_i_input_sign(char *signal)
 		if (!ftp_i_char_is_number(s[i]))
 			return FTP_INTERNAL_SIGNAL_ERROR;
 	}
-	return atoi(s);
+	return (int)strtol(s, NULL, 10);
 }
 
 inline int ftp_i_signal_is_error(int signal)
