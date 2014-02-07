@@ -139,7 +139,43 @@ int ftp_i_tls_init_data_connection(ftp_connection *c)
 
 #endif
 
-ftp_connection *ftp_open(char *host, unsigned int port, ftp_security sec)
+int ftp_i_init(ftp_connection *c, char *host, unsigned int port, ftp_security security)
+{
+	if (ftp_connect(c, host, port) == 0) {
+		c->status = FTP_CONNECTING;
+
+		ftp_i_set_input_trigger(c, FTP_SIGNAL_SERVICE_READY);
+
+		if (ftp_i_establish_input_thread(c) != 0)
+			return FTP_ETHREAD;
+
+		if (ftp_i_wait_for_triggers(c) != FTP_OK)
+			return c->error;
+
+		if (ftp_i_last_signal_was_error(c))
+			return FTP_ENOSERVICE;
+
+#ifdef FTP_TLS_ENABLED
+		if (security != ftp_security_none) {
+			int tls = ftp_i_tls_init(c);
+
+			if (tls == FTP_TLS_ERROR)
+				return c->error;
+
+			if (tls == FTP_TLS_NOTSUPPORTED && security == ftp_security_always)
+				return FTP_ESECURITY;
+		}
+#endif
+
+		c->status = FTP_UP;
+
+		return 0;
+	} else {
+		return FTP_ECONNECTION;
+	}
+}
+
+ftp_connection *ftp_open(char *host, unsigned int port, ftp_security security)
 {
 	ftp_error = 0;
 	ftp_connection *c = calloc(1, sizeof(ftp_connection));
@@ -156,49 +192,12 @@ ftp_connection *ftp_open(char *host, unsigned int port, ftp_security sec)
 	c->__features.use_epsv = c->__features.use_mlsd = ftp_btrue;
 	c->_current_features = &(c->__features);
 
-	if (ftp_connect(c,host,port) == 0) {
-		c->status = FTP_CONNECTING;
-
-		ftp_i_set_input_trigger(c, FTP_SIGNAL_SERVICE_READY);
-
-		if (ftp_i_establish_input_thread(c) != 0) {
-			ftp_error = FTP_ETHREAD;
-			goto out;
-		}
-
-		if (ftp_i_wait_for_triggers(c) != FTP_OK) {
-			ftp_error = c->error;
-			goto out;
-		}
-		if (ftp_i_last_signal_was_error(c)) {
-			ftp_error = FTP_ENOSERVICE;
-			goto out;
-		}
-
-#ifdef FTP_TLS_ENABLED
-		if (sec != ftp_security_none) {
-			int tls = ftp_i_tls_init(c);
-			if (tls == FTP_TLS_ERROR) {
-				ftp_error = c->error;
-				goto out;
-			}
-			if (tls == FTP_TLS_NOTSUPPORTED && sec == ftp_security_always) {
-				/* TLS is not supported but security is set to always. */
-				ftp_error = FTP_ESECURITY;
-				goto out;
-			}
-		}
-#endif
-
-		c->status = FTP_UP;
-		return c;
+	if ((ftp_error = ftp_i_init(c, host, port, security)) != 0) {
+		ftp_close(c);
+		return NULL;
 	}
 
-	ftp_error = FTP_ECONNECTION;
-
-out:
-	ftp_close(c);
-	return NULL;
+	return c;
 }
 
 ftp_status ftp_i_establish_data_connection(ftp_connection *c)
