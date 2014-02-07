@@ -79,6 +79,7 @@ int ftp_connect(ftp_connection *c, char *host, unsigned int port)
 	}
 
 	ftp_i_strcpy_malloc(c->_host, host);
+	c->_port = port;
 
 	return 0;
 }
@@ -157,34 +158,34 @@ ftp_connection *ftp_open(char *host, unsigned int port, ftp_security sec)
 
 	if (ftp_connect(c,host,port) == 0) {
 		c->status = FTP_CONNECTING;
+
 		ftp_i_set_input_trigger(c, FTP_SIGNAL_SERVICE_READY);
-		ftp_i_establish_input_thread(c);
+
+		if (ftp_i_establish_input_thread(c) != 0) {
+			ftp_error = FTP_ETHREAD;
+			goto out;
+		}
+
 		if (ftp_i_wait_for_triggers(c) != FTP_OK) {
 			ftp_error = c->error;
-			ftp_close(c);
-			return NULL;
+			goto out;
 		}
-		if (ftp_i_signal_is_error(c->last_signal)) {
+		if (ftp_i_last_signal_was_error(c)) {
 			ftp_error = FTP_ENOSERVICE;
-			ftp_close(c);
-			return NULL;
+			goto out;
 		}
-		c->_port = port;
 
 #ifdef FTP_TLS_ENABLED
-		//check TLS
 		if (sec != ftp_security_none) {
 			int tls = ftp_i_tls_init(c);
 			if (tls == FTP_TLS_ERROR) {
 				ftp_error = c->error;
-				ftp_close(c);
-				return NULL;
+				goto out;
 			}
 			if (tls == FTP_TLS_NOTSUPPORTED && sec == ftp_security_always) {
 				/* TLS is not supported but security is set to always. */
 				ftp_error = FTP_ESECURITY;
-				ftp_close(c);
-				return NULL;
+				goto out;
 			}
 		}
 #endif
@@ -194,6 +195,8 @@ ftp_connection *ftp_open(char *host, unsigned int port, ftp_security sec)
 	}
 
 	ftp_error = FTP_ECONNECTION;
+
+out:
 	ftp_close(c);
 	return NULL;
 }
