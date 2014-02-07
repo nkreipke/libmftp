@@ -169,7 +169,7 @@ ftp_content_listing *ftp_i_read_mlsd_answer(ftp_i_managed_buffer *buffer, int *i
 
 #ifdef FTP_CONTENTLISTING_VERBOSE
 	printf("Content Listing Raw data following. -------------\n");
-	ftp_i_managed_buffer_print(buffer);
+	ftp_i_managed_buffer_print(buffer, ftp_bfalse);
 #endif
 
 	for_sep(fs, (char*)buffer->buffer, FTP_CNL, {
@@ -251,7 +251,7 @@ ftp_content_listing *ftp_i_read_list_answer(ftp_i_managed_buffer *buffer, int *i
 
 #ifdef FTP_CONTENTLISTING_VERBOSE
 	printf("Content Listing Raw data following. -------------\n");
-	ftp_i_managed_buffer_print(buffer);
+	ftp_i_managed_buffer_print(buffer, ftp_bfalse);
 #endif
 
 	while (*(buf+p) != '\n') {

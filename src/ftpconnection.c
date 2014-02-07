@@ -210,11 +210,16 @@ void ftp_i_close(ftp_connection *c)
 		close(c->_sockfd);
 		ftp_i_release_input_thread(c);
 	}
-	ftp_i_free(c->_last_answer_buffer);
+	if (c->_last_answer_buffer)
+		ftp_i_managed_buffer_free(c->_last_answer_buffer);
 	ftp_i_free(c->cur_directory);
 	ftp_i_free(c->_mc_pass);
 	ftp_i_free(c->_mc_user);
 	ftp_i_free(c->_host);
+#ifdef FTP_SERVER_VERBOSE
+	if (c->verbose_command_buffer)
+		ftp_i_managed_buffer_free(c->verbose_command_buffer);
+#endif
 #ifdef FTP_TLS_ENABLED
 	ftp_i_tls_disconnect(&(c->_tls_info));
 	ftp_i_tls_disconnect(&(c->_tls_info_dc));
@@ -290,14 +295,26 @@ ftp_status ftp_send(ftp_connection *c, char *signal)
 	}
 
 #ifdef FTP_SERVER_VERBOSE
-	printf("# [client->server] ");
-	if (c->_temporary)
-		printf("(TMP) ");
-	if (*signal == 'P' && *(signal+1) == 'A' && *(signal+2) == 'S' && *(signal+3) == 'S')
-		//obviously we do not print our password
-		printf("PASS ****\n");
-	else
-		printf("%s",signal);
+	if (!c->verbose_command_buffer)
+		c->verbose_command_buffer = ftp_i_managed_buffer_new();
+
+	ftp_i_managed_buffer_append_str(c->verbose_command_buffer, signal);
+
+	if (ftp_i_managed_buffer_contains_str(c->verbose_command_buffer, FTP_CENDL, ftp_bfalse)) {
+		/* Command buffer contains complete message */
+		printf("# [client->server] ");
+
+		if (c->_temporary)
+			printf("(TMP) ");
+
+		if (ftp_i_managed_buffer_contains_str(c->verbose_command_buffer, FTP_CPASS, ftp_btrue))
+			printf("PASS ****\n");
+		else
+			ftp_i_managed_buffer_print(c->verbose_command_buffer, ftp_btrue);
+
+		ftp_i_managed_buffer_free(c->verbose_command_buffer);
+		c->verbose_command_buffer = NULL;
+	}
 #endif
 
 	unsigned long len = strlen(signal);
@@ -306,6 +323,35 @@ ftp_status ftp_send(ftp_connection *c, char *signal)
 		c->error = FTP_EWRITE;
 		return FTP_ERROR;
 	}
+	return FTP_OK;
+}
+
+ftp_status ftp_i_send_command_and_wait_for_triggers(ftp_connection *c, char *command, char *arg1, char *arg2, int error, ftp_bool *remote_err)
+{
+	ftp_send(c, command);
+	if (arg1) {
+		ftp_send(c, " ");
+		ftp_send(c, arg1);
+		if (arg2) {
+			ftp_send(c, " ");
+			ftp_send(c, arg2);
+		}
+	}
+	ftp_send(c, FTP_CENDL);
+
+	if (ftp_i_wait_for_triggers(c) != FTP_OK) {
+		if (remote_err)
+			*remote_err = ftp_bfalse;
+		return FTP_ERROR;
+	}
+	if (ftp_i_last_signal_was_error(c)) {
+		if (remote_err)
+			*remote_err = ftp_btrue;
+		if (error > 0)
+			ftp_i_connection_set_error(c, error);
+		return FTP_ERROR;
+	}
+
 	return FTP_OK;
 }
 

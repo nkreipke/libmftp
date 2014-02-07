@@ -45,6 +45,9 @@
 
 #define FTP_TRIGGER_MAX      10
 
+#define CHAR_CR '\r'
+#define CHAR_LF '\n'
+
 typedef char                 ftp_status;
 typedef unsigned char        ftp_activity;
 typedef unsigned char        ftp_bool;

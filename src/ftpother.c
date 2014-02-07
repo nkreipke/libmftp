@@ -287,6 +287,30 @@ unsigned long ftp_i_managed_buffer_read(ftp_i_managed_buffer *buf, void *data, u
 	return lo;
 }
 
+ftp_bool ftp_i_managed_buffer_contains_str(ftp_i_managed_buffer *buf, char *str, ftp_bool startswith)
+{
+	char *bufs = ftp_i_managed_buffer_cbuf(buf);
+	unsigned long current = 0;
+
+	while (*bufs)
+	{
+		if (*bufs == str[current]) {
+			current++;
+		} else {
+			if (startswith)
+				return ftp_bfalse;
+			current = 0;
+		}
+
+		if (!str[current])
+			return ftp_btrue;
+
+		bufs++;
+	}
+
+	return ftp_bfalse;
+}
+
 ftp_status ftp_i_managed_buffer_memcpy(ftp_i_managed_buffer *dest, const ftp_i_managed_buffer *src, unsigned long offset, unsigned long length)
 {
 	if (src->length < offset + length)
@@ -303,12 +327,15 @@ ftp_status ftp_i_managed_buffer_duplicate(ftp_i_managed_buffer *dest, const ftp_
 	return ftp_i_managed_buffer_memcpy(dest, src, 0, src->length);
 }
 
-void ftp_i_managed_buffer_print(ftp_i_managed_buffer *buf)
+void ftp_i_managed_buffer_print(ftp_i_managed_buffer *buf, ftp_bool ignore_newlines)
 {
 	unsigned char *b = buf->buffer;
 	unsigned long l = 0;
 	while (l < buf->length) {
-		printf("%c",*(b+l));
+		if (!ignore_newlines ||
+			(*(b+l) != CHAR_CR && *(b+l) != CHAR_LF))
+			printf("%c",*(b+l));
+
 		l++;
 	}
 	printf("\n");

@@ -39,13 +39,10 @@ ftp_status ftp_reload_cur_directory(ftp_connection *c)
 	}
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_MKDIR_SUCCESS_OR_PWD);
 	c->_last_answer_lock_signal = FTP_SIGNAL_MKDIR_SUCCESS_OR_PWD;
-	ftp_send(c, FTP_CPWD FTP_CENDL);
-	if (ftp_i_wait_for_triggers(c) != FTP_OK)
+
+	if (ftp_i_send_command_and_wait_for_triggers(c, FTP_CPWD, NULL, NULL, FTP_EUNEXPECTED, NULL) != FTP_OK)
 		return FTP_ERROR;
-	if (ftp_i_last_signal_was_error(c)) {
-		c->error = FTP_EUNEXPECTED;
-		return FTP_ERROR;
-	}
+
 	r = ftp_i_set_pwd_information(ftp_i_managed_buffer_cbuf(c->_last_answer_buffer), &c->cur_directory);
 	ftp_i_managed_buffer_free(c->_last_answer_buffer);
 	c->_last_answer_buffer = NULL;
@@ -69,14 +66,8 @@ ftp_status ftp_change_cur_directory(ftp_connection *c, char *path)
 	char msg[ANSWER_LEN];
 	sprintf(msg, FTP_CCWD " %s" FTP_CENDL, path);
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_REQUESTED_ACTION_OKAY);
-	ftp_send(c, msg);
-	if (ftp_i_wait_for_triggers(c) != FTP_OK)
-		return FTP_ERROR;
-	if (ftp_i_last_signal_was_error(c)) {
-		c->error = FTP_EUNEXPECTED;
-		return FTP_ERROR;
-	}
-	return FTP_OK;
+
+	return ftp_i_send_command_and_wait_for_triggers(c, FTP_CCWD, path, NULL, FTP_EUNEXPECTED, NULL);
 }
 
 ftp_content_listing *ftp_contents_of_directory(ftp_connection *c, int *items_count)
@@ -362,6 +353,28 @@ size_t ftp_fread(void *buf, size_t size, size_t count, ftp_file *f)
 	return data_count;
 }
 
+ftp_status ftp_size_legacy(ftp_connection *c, char *filenm, size_t *size)
+{
+	ftp_content_listing *content = ftp_contents_of_directory(c, NULL);
+	if (!content)
+		return FTP_ERROR;
+
+	ftp_content_listing *current = NULL;
+	if (!ftp_item_exists_in_content_listing(content, filenm, &current)) {
+		c->error = FTP_ENOTFOUND;
+		return FTP_ERROR;
+	}
+
+	if (!current) {
+		c->error = FTP_EUNEXPECTED;
+		return FTP_ERROR;
+	}
+
+	*size = current->facts.size;
+	ftp_free(content);
+	return FTP_OK;
+}
+
 ftp_status ftp_size(ftp_connection *c, char *filenm, size_t *size)
 {
 //FIXME: learn server SIZE behavior (current_features)
@@ -377,33 +390,20 @@ ftp_status ftp_size(ftp_connection *c, char *filenm, size_t *size)
 	if (ftp_i_set_transfer_type(c, ftp_tt_binary) != FTP_OK)
 		return FTP_ERROR;
 
-	char command[500];
-	sprintf(command, FTP_CSIZE " %s" FTP_CENDL,filenm);
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_FILE_STATUS);
 	c->_last_answer_lock_signal = FTP_SIGNAL_FILE_STATUS;
-	ftp_send(c, command);
-	if (ftp_i_wait_for_triggers(c) != FTP_OK)
-		return FTP_ERROR;
-	if (ftp_i_last_signal_was_error(c)) {
+
+	ftp_bool remote_error;
+	if (ftp_i_send_command_and_wait_for_triggers(c, FTP_CSIZE, filenm, NULL, 0, &remote_error) != FTP_OK) {
+		if (!remote_error)
+			return FTP_ERROR;
+
 		/* Maybe this server does not support the SIZE command.
 		 * We will try to get the size from a directory listing */
 		FTP_WARN("Server does not support SIZE command, falling back to legacy content listing mode.\n");
-		ftp_content_listing *content = ftp_contents_of_directory(c, NULL);
-		if (!content)
-			return FTP_ERROR;
-		ftp_content_listing *current = NULL;
-		if (!ftp_item_exists_in_content_listing(content, filenm, &current)) {
-			c->error = FTP_ENOTFOUND;
-			return FTP_ERROR;
-		}
-		if (!current) {
-			c->error = FTP_EUNEXPECTED;
-			return FTP_ERROR;
-		}
-		*size = current->facts.size;
-		ftp_free(content);
-		return FTP_OK;
+		return ftp_size_legacy(c, filenm, size);
 	}
+
 	char *answer = ftp_i_managed_buffer_cbuf(c->_last_answer_buffer);
 	int i;
 	char sizstr[15];
@@ -418,92 +418,76 @@ ftp_status ftp_size(ftp_connection *c, char *filenm, size_t *size)
 
 ftp_status ftp_rename(ftp_connection *c, char *oldfn, char *newfn)
 {
-	char cmd1[500], cmd2[500];
 	if (c->status != FTP_UP) {
 		c->error = FTP_ENOTREADY;
 		return FTP_ERROR;
 	}
-	sprintf(cmd1, FTP_CRNFR " %s" FTP_CENDL, oldfn);
-	sprintf(cmd2, FTP_CRNTO " %s" FTP_CENDL, newfn);
+
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_REQUEST_FURTHER_INFORMATION);
-	ftp_send(c, cmd1);
-	if (ftp_i_wait_for_triggers(c) != FTP_OK)
-		return FTP_ERROR;
-	if (ftp_i_last_signal_was_error(c)) {
-		c->error = (c->last_signal == FTP_SIGNAL_FILE_ERROR ? FTP_ENOTFOUND : FTP_EUNEXPECTED);
+
+	ftp_bool remote_error;
+	if (ftp_i_send_command_and_wait_for_triggers(c, FTP_CRNFR, oldfn, NULL, 0, &remote_error) != FTP_OK) {
+		if (remote_error)
+			ftp_i_connection_set_error(c, (c->last_signal == FTP_SIGNAL_FILE_ERROR ? FTP_ENOTFOUND : FTP_EUNEXPECTED));
 		return FTP_ERROR;
 	}
+
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_REQUESTED_ACTION_OKAY);
-	ftp_send(c, cmd2);
-	if (ftp_i_wait_for_triggers(c) != FTP_OK)
-		return FTP_ERROR;
-	if (ftp_i_last_signal_was_error(c)) {
-		c->error = FTP_EUNEXPECTED;
-		return FTP_ERROR;
-	}
-	return FTP_OK;
+
+	return ftp_i_send_command_and_wait_for_triggers(c, FTP_CRNTO, newfn, NULL, FTP_EUNEXPECTED, NULL);
 }
 
 ftp_status ftp_delete(ftp_connection *c, char *fnm, ftp_bool is_folder)
 {
-	char cmd[500];
 	if (c->status != FTP_UP) {
 		c->error = FTP_ENOTREADY;
 		return FTP_ERROR;
 	}
-	if (is_folder)
-		sprintf(cmd, FTP_CRMD " %s" FTP_CENDL, fnm);
-	else
-		sprintf(cmd, FTP_CDELE " %s" FTP_CENDL, fnm);
+
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_REQUESTED_ACTION_OKAY);
-	ftp_send(c, cmd);
-	if (ftp_i_wait_for_triggers(c) != FTP_OK)
-		return FTP_ERROR;
-	if (ftp_i_last_signal_was_error(c)) {
-		c->error = (c->last_signal == FTP_SIGNAL_FILE_ERROR ?
+
+	ftp_bool remote_error;
+	if (ftp_i_send_command_and_wait_for_triggers(c, (is_folder ? FTP_CRMD : FTP_CDELE), fnm, NULL, 0, &remote_error) != FTP_OK) {
+		if (remote_error) {
+			ftp_i_connection_set_error(c, (c->last_signal == FTP_SIGNAL_FILE_ERROR ?
 					(is_folder ? FTP_ENOTFOUND_OR_NOTEMPTY : FTP_ENOTFOUND) :
-					FTP_EUNEXPECTED);
+					FTP_EUNEXPECTED));
+		}
 		return FTP_ERROR;
 	}
+
 	return FTP_OK;
 }
 
 ftp_status ftp_chmod(ftp_connection *c, char *fnm, unsigned int mode)
 {
-	char cmd[500];
+	char mode_string[5];
+
 	if (c->status != FTP_UP) {
 		c->error = FTP_ENOTREADY;
 		return FTP_ERROR;
 	}
-	sprintf(cmd, FTP_CUNIX_CHMOD " %u %s" FTP_CENDL,mode,fnm);
+
+	if (mode > 777)
+		return FTP_EARGUMENTS;
+
+	sprintf(mode_string, "%u", mode);
+
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_COMMAND_OKAY);
-	ftp_send(c, cmd);
-	if (ftp_i_wait_for_triggers(c) != FTP_OK)
-		return FTP_ERROR;
-	if (ftp_i_last_signal_was_error(c)) {
-		c->error = FTP_EUNEXPECTED;
-		return FTP_ERROR;
-	}
-	return FTP_OK;
+
+	return ftp_i_send_command_and_wait_for_triggers(c, FTP_CUNIX_CHMOD, mode_string, fnm, FTP_EUNEXPECTED, NULL);
 }
 
 ftp_status ftp_create_folder(ftp_connection *c, char *fnm)
 {
-	char cmd[500];
 	if (c->status != FTP_UP) {
 		c->error = FTP_ENOTREADY;
 		return FTP_ERROR;
 	}
-	sprintf(cmd, FTP_CMKD " %s" FTP_CENDL,fnm);
+
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_MKDIR_SUCCESS_OR_PWD);
-	ftp_send(c, cmd);
-	if (ftp_i_wait_for_triggers(c) != FTP_OK)
-		return FTP_ERROR;
-	if (ftp_i_last_signal_was_error(c)) {
-		c->error = FTP_EUNEXPECTED;
-		return FTP_ERROR;
-	}
-	return FTP_OK;
+
+	return ftp_i_send_command_and_wait_for_triggers(c, FTP_CMKD, fnm, NULL, FTP_EUNEXPECTED, NULL);
 }
 
 ftp_status ftp_noop(ftp_connection *c, ftp_bool wfresponse)

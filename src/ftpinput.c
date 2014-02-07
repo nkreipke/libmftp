@@ -32,9 +32,6 @@
 #define SIGN_TERMINATE (-1)
 #define SIGN_NOTHING 0
 
-#define CHAR_CR '\r'
-#define CHAR_LF '\n'
-
 void *   ftp_i_input_thread(void *);
 ftp_bool ftp_i_is_trigger(ftp_connection *, int);
 void     ftp_i_reset_triggers(ftp_connection *);
@@ -132,7 +129,7 @@ ftp_bool ftp_i_process_input(ftp_connection *c, ftp_i_managed_buffer *buf)
 	printf("# [server->client] ");
 	if (c->_temporary)
 		printf("(TMP) ");
-	ftp_i_managed_buffer_print(buf);
+	ftp_i_managed_buffer_print(buf, ftp_btrue);
 #endif
 
 	c->last_signal = signal;

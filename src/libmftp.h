@@ -118,6 +118,9 @@ typedef struct _ftp_connection {
 	ftp_bool _termination_signal:1;
 	ftp_bool _release_input_thread:1;
 	ftp_bool _disable_input_thread:1;
+#ifdef FTP_SERVER_VERBOSE
+	void *verbose_command_buffer;
+#endif
 #ifdef FTP_TLS_ENABLED
 	void *_tls_info;
 	void *_tls_info_dc;

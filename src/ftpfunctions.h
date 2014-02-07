@@ -140,6 +140,7 @@ ssize_t               ftp_i_read(ftp_connection *, int, void *, size_t);
 /*                    Connection */
 void                  ftp_i_close(ftp_connection *);
 ftp_status            ftp_i_set_transfer_type(ftp_connection *, ftp_transfer_type);
+ftp_status            ftp_i_send_command_and_wait_for_triggers(ftp_connection *, char *, char *, char *, int, ftp_bool *);
 
 /*                    Input Thread */
 int                   ftp_i_establish_input_thread(ftp_connection *);
@@ -191,9 +192,10 @@ ftp_i_managed_buffer *ftp_i_managed_buffer_new(void);
 ftp_status            ftp_i_managed_buffer_append(ftp_i_managed_buffer *, void *, unsigned long);
 #define               ftp_i_managed_buffer_append_str(buf,string) do {void *s = (void*)(string); ftp_i_managed_buffer_append(buf, s, strlen(s));} while(0)
 unsigned long         ftp_i_managed_buffer_read(ftp_i_managed_buffer *, void *, unsigned long);
+ftp_bool              ftp_i_managed_buffer_contains_str(ftp_i_managed_buffer *, char *, ftp_bool);
 ftp_status            ftp_i_managed_buffer_memcpy(ftp_i_managed_buffer *, const ftp_i_managed_buffer *, unsigned long, unsigned long);
 ftp_status            ftp_i_managed_buffer_duplicate(ftp_i_managed_buffer *, const ftp_i_managed_buffer *);
-void                  ftp_i_managed_buffer_print(ftp_i_managed_buffer *);
+void                  ftp_i_managed_buffer_print(ftp_i_managed_buffer *, ftp_bool);
 char *                ftp_i_managed_buffer_disassemble(ftp_i_managed_buffer *);
 void                  ftp_i_managed_buffer_free(ftp_i_managed_buffer *);
 
