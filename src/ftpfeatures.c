@@ -32,39 +32,35 @@
 
 ftp_status ftp_reload_cur_directory(ftp_connection *c)
 {
-	int r;
-	if (c->status != FTP_UP) {
-		c->error = FTP_ENOTREADY;
+	if (!ftp_i_connection_is_ready(c)) {
+		ftp_i_connection_set_error(c, FTP_ENOTREADY);
 		return FTP_ERROR;
 	}
+
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_MKDIR_SUCCESS_OR_PWD);
 	c->_last_answer_lock_signal = FTP_SIGNAL_MKDIR_SUCCESS_OR_PWD;
 
 	if (ftp_i_send_command_and_wait_for_triggers(c, FTP_CPWD, NULL, NULL, FTP_EUNEXPECTED, NULL) != FTP_OK)
 		return FTP_ERROR;
 
-	r = ftp_i_set_pwd_information(ftp_i_managed_buffer_cbuf(c->_last_answer_buffer), &c->cur_directory);
+	int result = ftp_i_set_pwd_information(ftp_i_managed_buffer_cbuf(c->_last_answer_buffer), &c->cur_directory);
 	ftp_i_managed_buffer_free(c->_last_answer_buffer);
 
-	if (r != 0) {
-		c->error = r;
+	if (result != 0) {
+		ftp_i_connection_set_error(c, result);
 		return FTP_ERROR;
 	}
+
 	return FTP_OK;
 }
 
 ftp_status ftp_change_cur_directory(ftp_connection *c, char *path)
 {
-	if (strlen(path) + 5 > ANSWER_LEN) {
-		c->error = FTP_ETOOLONG;
+	if (!ftp_i_connection_is_ready(c)) {
+		ftp_i_connection_set_error(c, FTP_ENOTREADY);
 		return FTP_ERROR;
 	}
-	if (c->status != FTP_UP) {
-		c->error = FTP_ENOTREADY;
-		return FTP_ERROR;
-	}
-	char msg[ANSWER_LEN];
-	sprintf(msg, FTP_CCWD " %s" FTP_CENDL, path);
+
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_REQUESTED_ACTION_OKAY);
 
 	return ftp_i_send_command_and_wait_for_triggers(c, FTP_CCWD, path, NULL, FTP_EUNEXPECTED, NULL);
@@ -72,8 +68,8 @@ ftp_status ftp_change_cur_directory(ftp_connection *c, char *path)
 
 ftp_content_listing *ftp_contents_of_directory(ftp_connection *c, int *items_count)
 {
-	if (c->_data_connection != 0 || c->status != FTP_UP) {
-		c->error = FTP_ENOTREADY;
+	if (!ftp_i_data_connection_is_ready(c) || !ftp_i_connection_is_ready(c)) {
+		ftp_i_connection_set_error(c, FTP_ENOTREADY);
 		return NULL;
 	}
 
@@ -194,8 +190,8 @@ ftp_file *ftp_fopen(ftp_connection *c, char *filenm, ftp_activity activity, unsi
 		c->error = FTP_EARGUMENTS;
 		return NULL;
 	}
-	if (c->status != FTP_UP) {
-		c->error = FTP_ENOTREADY;
+	if (!ftp_i_connection_is_ready(c)) {
+		ftp_i_connection_set_error(c, FTP_ENOTREADY);
 		return NULL;
 	}
 	ftp_file *f = (ftp_file*)malloc(sizeof(ftp_file));
@@ -378,10 +374,11 @@ ftp_status ftp_size_legacy(ftp_connection *c, char *filenm, size_t *size)
 ftp_status ftp_size(ftp_connection *c, char *filenm, size_t *size)
 {
 //FIXME: learn server SIZE behavior (current_features)
-	if (c->status != FTP_UP) {
-		c->error = FTP_ENOTREADY;
+	if (!ftp_i_connection_is_ready(c)) {
+		ftp_i_connection_set_error(c, FTP_ENOTREADY);
 		return FTP_ERROR;
 	}
+
 	if (size == NULL) {
 		c->error = FTP_EARGUMENTS;
 		return FTP_ERROR;
@@ -418,8 +415,8 @@ ftp_status ftp_size(ftp_connection *c, char *filenm, size_t *size)
 
 ftp_status ftp_rename(ftp_connection *c, char *oldfn, char *newfn)
 {
-	if (c->status != FTP_UP) {
-		c->error = FTP_ENOTREADY;
+	if (!ftp_i_connection_is_ready(c)) {
+		ftp_i_connection_set_error(c, FTP_ENOTREADY);
 		return FTP_ERROR;
 	}
 
@@ -439,8 +436,8 @@ ftp_status ftp_rename(ftp_connection *c, char *oldfn, char *newfn)
 
 ftp_status ftp_delete(ftp_connection *c, char *fnm, ftp_bool is_folder)
 {
-	if (c->status != FTP_UP) {
-		c->error = FTP_ENOTREADY;
+	if (!ftp_i_connection_is_ready(c)) {
+		ftp_i_connection_set_error(c, FTP_ENOTREADY);
 		return FTP_ERROR;
 	}
 
@@ -463,8 +460,8 @@ ftp_status ftp_chmod(ftp_connection *c, char *fnm, unsigned int mode)
 {
 	char mode_string[5];
 
-	if (c->status != FTP_UP) {
-		c->error = FTP_ENOTREADY;
+	if (!ftp_i_connection_is_ready(c)) {
+		ftp_i_connection_set_error(c, FTP_ENOTREADY);
 		return FTP_ERROR;
 	}
 
@@ -480,8 +477,8 @@ ftp_status ftp_chmod(ftp_connection *c, char *fnm, unsigned int mode)
 
 ftp_status ftp_create_folder(ftp_connection *c, char *fnm)
 {
-	if (c->status != FTP_UP) {
-		c->error = FTP_ENOTREADY;
+	if (!ftp_i_connection_is_ready(c)) {
+		ftp_i_connection_set_error(c, FTP_ENOTREADY);
 		return FTP_ERROR;
 	}
 
@@ -492,6 +489,11 @@ ftp_status ftp_create_folder(ftp_connection *c, char *fnm)
 
 ftp_status ftp_noop(ftp_connection *c, ftp_bool wfresponse)
 {
+	if (!ftp_i_connection_is_ready(c)) {
+		ftp_i_connection_set_error(c, FTP_ENOTREADY);
+		return FTP_ERROR;
+	}
+
 	if (wfresponse)
 		ftp_i_set_input_trigger(c, FTP_SIGNAL_COMMAND_OKAY);
 	ftp_send(c, FTP_CNOOP FTP_CENDL);

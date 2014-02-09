@@ -100,6 +100,7 @@
 
 #define ftp_i_is_timed_out(errno) (errno == EAGAIN || errno == EWOULDBLOCK)
 #define ftp_i_connection_is_ready(c) (c->status == FTP_UP)
+#define ftp_i_data_connection_is_ready(c) (c->_data_connection == 0)
 #define ftp_i_connection_is_waiting(c) (c->status == FTP_WAITING)
 #define ftp_i_connection_set_error(c,err) c->error = err
 #define ftp_i_connection_is_down(c) (c->status == FTP_DOWN)
