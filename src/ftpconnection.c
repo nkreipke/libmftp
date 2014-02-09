@@ -405,6 +405,30 @@ ftp_status ftp_i_send_command_and_wait_for_triggers(ftp_connection *c, char *com
 	return FTP_OK;
 }
 
+ftp_status ftp_i_read_data_connection_into_buffer(ftp_connection *c, ftp_i_managed_buffer *buf)
+{
+	char chr;
+	ssize_t n;
+	while ((n = ftp_i_read(c, 1, &chr, 1)) == 1) {
+		if (ftp_i_managed_buffer_append(buf, &chr, 1) != FTP_OK) {
+			ftp_i_connection_set_error(c, FTP_ECOULDNOTALLOCATE);
+			return FTP_ERROR;
+		}
+	}
+
+	if (n < 0) {
+		if (ftp_i_is_timed_out(errno)) {
+			errno = 0;
+			ftp_i_connection_set_error(c, FTP_ETIMEOUT);
+		} else {
+			ftp_i_connection_set_error(c, FTP_ESOCKET);
+		}
+		return FTP_ERROR;
+	}
+
+	return FTP_OK;
+}
+
 ftp_status ftp_i_set_transfer_type(ftp_connection *c, ftp_transfer_type tt)
 {
 	if (tt == ftp_tt_undefined)

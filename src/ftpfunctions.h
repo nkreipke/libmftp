@@ -151,6 +151,7 @@ ssize_t               ftp_i_read(ftp_connection *, int, void *, size_t);
 void                  ftp_i_close(ftp_connection *);
 ftp_status            ftp_i_set_transfer_type(ftp_connection *, ftp_transfer_type);
 ftp_status            ftp_i_send_command_and_wait_for_triggers(ftp_connection *, char *, char *, char *, int, ftp_bool *);
+ftp_status            ftp_i_read_data_connection_into_buffer(ftp_connection *, ftp_i_managed_buffer *);
 
 /*                    Input Thread */
 int                   ftp_i_establish_input_thread(ftp_connection *);

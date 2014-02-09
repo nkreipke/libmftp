@@ -76,82 +76,64 @@ ftp_content_listing *ftp_contents_of_directory(ftp_connection *c, int *items_cou
 	if (ftp_i_set_transfer_type(c, ftp_tt_ascii) != FTP_OK)
 		return NULL;
 
-	//buffer
-	ftp_i_managed_buffer *buffer = ftp_i_managed_buffer_new();
-	if (!buffer) {
-		c->error = FTP_ECOULDNOTALLOCATE;
-		return NULL;
-	}
-	//start
-
 	if (ftp_i_establish_data_connection(c) != FTP_OK)
 		return NULL;
 
-	ftp_bool use_mlsd = c->_current_features->use_mlsd;
+	ftp_bool remote_error,
+		use_mlsd = c->_current_features->use_mlsd;
 
-	//please forgive me for using goto.
-again:
-	ftp_i_set_input_trigger(c, FTP_SIGNAL_ABOUT_TO_OPEN_DATA_CONNECTION);
-	ftp_i_set_input_trigger(c, FTP_SIGNAL_DATA_CONNECTION_OPEN_STARTING_TRANSFER);
-	if (use_mlsd)
-		ftp_send(c, FTP_CMLSD FTP_CENDL);
-	else
-		ftp_send(c, FTP_CLIST FTP_CENDL);
-	if (ftp_i_wait_for_triggers(c) != FTP_OK) {
-		ftp_i_close_data_connection(c);
-		return NULL;
-	}
-	if (ftp_i_last_signal_was_error(c)) {
-		if (use_mlsd) {
-			//server may have not understood MLSD
+	while (1) {
+		ftp_i_set_input_trigger(c, FTP_SIGNAL_ABOUT_TO_OPEN_DATA_CONNECTION);
+		ftp_i_set_input_trigger(c, FTP_SIGNAL_DATA_CONNECTION_OPEN_STARTING_TRANSFER);
+
+		if (ftp_i_send_command_and_wait_for_triggers(c,
+			(use_mlsd ? FTP_CMLSD : FTP_CLIST), NULL, NULL, 0, &remote_error) != FTP_OK) {
+			if (remote_error || !use_mlsd) {
+				ftp_i_close_data_connection(c);
+				ftp_i_connection_set_error(c, FTP_EUNEXPECTED);
+				return NULL;
+			}
+
+			/* Use legacy LIST mode */
 			use_mlsd = ftp_bfalse;
-			goto again;
 		} else {
-			c->error = FTP_EUNEXPECTED;
-			ftp_i_close_data_connection(c);
-			return NULL;
+			break;
 		}
 	}
 
-	//prepare data connection
+	c->_current_features->use_mlsd = use_mlsd;
+
 	if (ftp_i_prepare_data_connection(c) != FTP_OK) {
 		ftp_i_close_data_connection(c);
 		return NULL;
 	}
 
-	//read buffered data
-	char buf;
-	ssize_t n;
-	while ((n = ftp_i_read(c, 1, &buf, 1)) == 1) {
-		if (ftp_i_managed_buffer_append(buffer, &buf, 1) != FTP_OK) {
-			ftp_i_managed_buffer_free(buffer);
-			ftp_i_close_data_connection(c);
-			c->error = FTP_ECOULDNOTALLOCATE;
-			return NULL;
-		}
-	}
-	ftp_i_close_data_connection(c);
-	if (n < 0) {
-		ftp_i_managed_buffer_free(buffer);
-		if (errno == EAGAIN || errno == EWOULDBLOCK) {
-			errno = 0;
-			c->error = FTP_ETIMEOUT;
-		} else {
-			c->error = FTP_ESOCKET;
-		}
+	ftp_i_managed_buffer *buf;
+	if (!(buf = ftp_i_managed_buffer_new())) {
+		ftp_i_connection_set_error(c, FTP_ECOULDNOTALLOCATE);
 		return NULL;
 	}
 
+	ftp_status result = ftp_i_read_data_connection_into_buffer(c, buf);
+
+	ftp_i_close_data_connection(c);
+
+	if (result != FTP_OK) {
+		ftp_i_managed_buffer_free(buf);
+		return NULL;
+	}
+
+	/* Parse server answer */
 	ftp_content_listing *content = NULL;
 	int itemscount, error;
 	if (use_mlsd) {
-		content = ftp_i_read_mlsd_answer(buffer, &itemscount, &error);
+		content = ftp_i_read_mlsd_answer(buf, &itemscount, &error);
 	} else {
 		c->_current_features->use_mlsd = ftp_bfalse;
-		content = ftp_i_read_list_answer(buffer, &itemscount, &error);
+		content = ftp_i_read_list_answer(buf, &itemscount, &error);
 	}
 
-	ftp_i_managed_buffer_free(buffer);
+	ftp_i_managed_buffer_free(buf);
 
 	if (!content) {
 		ftp_i_connection_set_error(c, error);
@@ -160,7 +142,6 @@ again:
 
 	if (c->content_listing_filter)
 		content = ftp_i_applyclfilter(content, &itemscount);
-
 
 	if (items_count != NULL)
 		*items_count = itemscount;
