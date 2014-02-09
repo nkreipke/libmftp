@@ -25,9 +25,6 @@
 #ifndef libmftp_ftperrors_h
 #define libmftp_ftperrors_h
 
-#define ftpesigtoggle(e) (-1000 - e)
-#define ftpiserror(sig) (sig <= -1000)
-
 #define FTP_ESOCKET 1
 #define FTP_ECOULDNOTALLOCATE 2
 #define FTP_ECOULDNOTOPENSOCKET 3
