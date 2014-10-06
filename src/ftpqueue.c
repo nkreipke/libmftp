@@ -23,7 +23,7 @@
 
 
 #include <stdio.h>
-#include "ftpfunctions.h"
+#include "ftpinternal.h"
 
 #define FTP_MAX_TEMP_CONNECTIONS_HELD_OPEN 1
 
@@ -94,6 +94,7 @@ ftp_connection *ftp_i_generate_simultaneous_connection(ftp_connection *parent)
 	if ((child = ftp_open(parent->_host, parent->_port, ftp_i_open_getsecurity(parent))) == NULL)
 		return NULL;
 	child->_temporary = ftp_btrue;
+	child->_current_features = parent->_current_features;
 
 	if (parent->_mc_user && parent->_mc_pass &&
 		ftp_auth(child, parent->_mc_user, parent->_mc_pass, ftp_bfalse) != FTP_OK) {
@@ -101,8 +102,9 @@ ftp_connection *ftp_i_generate_simultaneous_connection(ftp_connection *parent)
 		return NULL;
 	};
 
-	if (ftp_reload_cur_directory(parent) != FTP_OK ||
-		ftp_change_cur_directory(child, parent->cur_directory) != FTP_OK) {
+	char *cur_directory = ftp_get_cur_directory(parent);
+	if (!cur_directory ||
+		ftp_change_cur_directory(child, cur_directory) != FTP_OK) {
 		ftp_i_close(child);
 		return NULL;
 	}

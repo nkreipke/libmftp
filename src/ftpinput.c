@@ -26,7 +26,7 @@
 #include <errno.h>
 #include <sys/time.h>
 #include <string.h>
-#include "ftpfunctions.h"
+#include "ftpinternal.h"
 #include "ftpcommands.h"
 
 #define SIGN_TERMINATE (-1)
@@ -40,7 +40,7 @@ ftp_bool ftp_i_reached_timeout(ftp_connection *);
 ftp_bool ftp_i_process_input(ftp_connection *, ftp_i_managed_buffer *);
 
 /*
- * This function is run in a background thread and receives messages from the server.
+ * This function runs in a background thread and receives messages from the server.
  * When an operation waits for a specific server answer, it sets a "trigger signal", which
  * this function will recognize and terminate. After signal processing is done, a new
  * input thread is established.

@@ -25,7 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "ftpfunctions.h"
+#include "ftpinternal.h"
 #include "ftpsignals.h"
 #include "ftpcommands.h"
 

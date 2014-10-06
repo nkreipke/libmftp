@@ -28,7 +28,7 @@
 #include <ctype.h>
 #define __USE_XOPEN
 #include <time.h>
-#include "ftpfunctions.h"
+#include "ftpinternal.h"
 
 #define TM_YEAR_OFFSET 1900
 

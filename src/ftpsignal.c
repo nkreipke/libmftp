@@ -24,7 +24,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "ftpfunctions.h"
+#include "ftpinternal.h"
 #include "ftpsignals.h"
 
 /* SEVERAL PARSERS FOR SERVER ANSWERS */
@@ -58,9 +58,11 @@ int ftp_i_set_pwd_information(char *server_answer, char **destination_malloc)
 	int startchr = -1, endchr = -1, i = 0, len = 0;
 	if (*destination_malloc)
 		free(*destination_malloc);
+
 	*destination_malloc = malloc(sizeof(char) * ANSWER_LEN);
 	if (!*destination_malloc)
 		return FTP_ECOULDNOTALLOCATE;
+
 	while (*(server_answer+i) !='\0') {
 		if (*(server_answer+i) == '\"') {
 			if (startchr == -1)
@@ -73,6 +75,7 @@ int ftp_i_set_pwd_information(char *server_answer, char **destination_malloc)
 		}
 		i++;
 	}
+
 	startchr++;
 	endchr--;
 	if (startchr > endchr) {
@@ -85,6 +88,7 @@ int ftp_i_set_pwd_information(char *server_answer, char **destination_malloc)
 		//can not be longer than server_answer
 		return FTP_EUNEXPECTED;
 	}
+
 	ftp_i_memcpy_nulltrm(*destination_malloc, server_answer, startchr, len);
 	return 0;
 }

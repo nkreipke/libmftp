@@ -26,7 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include "ftpfunctions.h"
+#include "ftpinternal.h"
 #include "ftpcommands.h"
 #include "ftpparse.h"
 

@@ -25,6 +25,7 @@
 #ifndef libmftp_libmftp_h
 #define libmftp_libmftp_h
 
+#include <stdlib.h>
 #include "ftpdefinitions.h"
 
 
@@ -68,64 +69,7 @@
 // FTP_CONNECTION //
 ////////////////////
 
-typedef struct _ftp_connection {
-	/* Status of the connection. */
-	ftp_status status;
 
-	/* The current remote directory.
-	 * Call ftp_reload_cur_directory first. */
-	char * cur_directory;
-
-	/* The connection timeout when waiting for a server answer. (60 by default) */
-	unsigned long timeout;
-
-	/* The status number of the latest server answer. */
-	int last_signal;
-
-	/* Error ID */
-	int error;
-
-	/* Sets whether a second connection should automatically be used for file transfers. (true by default)
-	 * This is necessary for background file transfers.
-	 * (Ignored if multiple connections are not allowed) */
-	ftp_bool file_transfer_second_connection:1;
-
-	/* Filters ".", ".." and other items that are neither files nor directories. */
-	ftp_bool content_listing_filter:1;
-
-
-	/* Internal */
-	int _port;
-	int _adr_fam;
-	int _sockfd;
-	int _data_connection;
-	struct ftp_features __features;
-	struct ftp_features * _current_features;
-	int _last_answer_lock_signal;
-	void * _last_answer_buffer;
-	char *_host;
-	char * _dataBuf;
-	unsigned long _dataPointer;
-	pthread_t _input_thread;
-	int _input_trigger_signals[FTP_TRIGGER_MAX];
-	struct timeval _wait_start;
-	char *_mc_user, *_mc_pass;
-	struct _ftp_connection *_parent, *_child;
-	ftp_transfer_type _transfer_type;
-	ftp_bool _internal_error_signal:1;
-	ftp_bool _mc_enabled:1;
-	ftp_bool _temporary:1;
-	ftp_bool _termination_signal:1;
-	ftp_bool _release_input_thread:1;
-	ftp_bool _disable_input_thread:1;
-#ifdef FTP_SERVER_VERBOSE
-	void *verbose_command_buffer;
-#endif
-#ifdef FTP_TLS_ENABLED
-	void *_tls_info;
-	void *_tls_info_dc;
-#endif
-} ftp_connection;
 
 typedef enum {
 	/* Do not establish secure connection. */
@@ -186,11 +130,6 @@ typedef struct _ftpcontentlisting {
 	struct _ftpcontentlisting *next;
 } ftp_content_listing;
 
-/*
- * This contains error information only if ftp_open fails. Otherwise, the information
- * will be located in ftp_connection->error or *(ftp_file->error).
- */
-extern int ftp_error;
 
 FTP_I_BEGIN_DECLS
 
@@ -211,8 +150,10 @@ ftp_status ftp_auth(ftp_connection *, char *, char *, ftp_bool);
  * establish connections when trying to upload/download multiple files
  * simultaneously. */
 
-/* Reload current directory: ftp_reload_cur_directory(ftpConnection) */
-ftp_status ftp_reload_cur_directory(ftp_connection *);
+/* Get current directory: ftp_reload_cur_directory(ftpConnection) */
+char *ftp_get_cur_directory(ftp_connection *);
+/* The returned memory area is valid until the directory changes or gets reloaded.
+   To retain it, copy it using strcpy. */
 
 /* Change current directory: ftp_change_cur_directory(ftpConnection, char *) */
 ftp_status ftp_change_cur_directory(ftp_connection *, char *);
@@ -248,7 +189,7 @@ ftp_file *ftp_fopen(ftp_connection *, char *, ftp_activity, unsigned long);
 size_t ftp_fread(void *, size_t, size_t, ftp_file *);
 size_t ftp_fwrite(const void *, size_t, size_t, ftp_file *);
 /* Write string: */
-#define ftp_fwrites(string,file) ftp_fwrite(string,sizeof(char),strlen(string),file)
+#define ftp_fwrites(string,file) ftp_fwrite(string, sizeof(char), strlen(string), file)
 /* Check *(file->error) after using these functions.
  * When using ftp_fread, also check ftp_feof to determine the file end. */
 
@@ -277,6 +218,21 @@ ftp_status ftp_create_folder(ftp_connection *, char *);
 
 /* Send a NOOP command to the server: ftp_noop(ftpConnection, wait_for_response) */
 ftp_status ftp_noop(ftp_connection *, ftp_bool);
+
+
+/* Get the last error of the connection. Pass NULL to get an error that occurred during
+   creation of the connection and you did not get back a valid pointer. */
+ftp_error ftp_connection_get_error(ftp_connection *);
+
+/* Get the last error of the file transfer. Use this instead of ftp_connection_get_error
+   when an error occurred during file transfer. */
+ftp_error ftp_file_get_error(ftp_file *);
+
+#ifdef SUPPORTS_GENERICS
+/* Pass ftp_connection to get the last error of the connection. Pass ftp_file to get the
+   last error regarding file transfer. Pass NULL to get the last global error. */
+#define ftp_get_error(x) _Generic((x), ftp_connection *: ftp_connection_get_error, ftp_file *: ftp_file_get_error, void *: ftp_connection_get_error)(x)
+#endif
 
 
 FTP_I_END_DECLS

@@ -25,14 +25,6 @@
 #ifndef libmftp_ftpdefinitions_h
 #define libmftp_ftpdefinitions_h
 
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <time.h>
-
 #include "ftperrors.h"
 
 /* ftp_status values for ftp_connection->status: */
@@ -43,23 +35,29 @@
 
 #define FTP_STANDARD_PORT    21
 
-#define FTP_TRIGGER_MAX      10
-
 #define CHAR_CR '\r'
 #define CHAR_LF '\n'
 
+typedef struct _ftp_connection ftp_connection;
+
 typedef char                 ftp_status;
 typedef unsigned char        ftp_activity;
+
+#ifdef __cplusplus
+typedef bool                 ftp_bool;
+#define ftp_bfalse false
+#define ftp_btrue true
+#else
 typedef unsigned char        ftp_bool;
+enum ftp_bools {
+	ftp_bfalse = 0,
+	ftp_btrue = 1
+};
+#endif
 
 struct ftp_features {
 	ftp_bool use_epsv;
 	ftp_bool use_mlsd;
-};
-
-enum ftp_bools {
-	ftp_bfalse = 0,
-	ftp_btrue = 1
 };
 
 #ifdef FTP_PERM_ENABLED
@@ -92,6 +90,10 @@ typedef enum {
 #define FTP_I_BEGIN_DECLS
 #define FTP_I_END_DECLS
 #endif
+#endif
+
+#if (__STDC_VERSION__ >= 201112L)
+#define SUPPORTS_GENERICS
 #endif
 
 

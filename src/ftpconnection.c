@@ -26,14 +26,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include "ftpfunctions.h"
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <netdb.h>
+
+#include "ftpinternal.h"
 #include "ftpcommands.h"
 #include "ftpsignals.h"
 
 #define STANDARD_TIMEOUT 60
 #define INTERNAL_TIMEOUT 1
 
-int ftp_error = 0;
+int _ftp_error = 0;
 
 #define FTP_TLS_OK 0
 #define FTP_TLS_NOTSUPPORTED 1
@@ -74,7 +79,7 @@ int ftp_connect(ftp_connection *c, char *host, unsigned int port)
 {
 	c->_sockfd = ftp_i_socket_connect(host, port, INTERNAL_TIMEOUT);
 	if (c->_sockfd < 0) {
-		ftp_error = FTP_ECONNECTION;
+		_ftp_error = FTP_ECONNECTION;
 		return 1;
 	}
 
@@ -177,10 +182,10 @@ int ftp_i_init(ftp_connection *c, char *host, unsigned int port, ftp_security se
 
 ftp_connection *ftp_open(char *host, unsigned int port, ftp_security security)
 {
-	ftp_error = 0;
+	_ftp_error = 0;
 	ftp_connection *c = calloc(1, sizeof(ftp_connection));
 	if (!c) {
-		ftp_error = FTP_ECOULDNOTALLOCATE;
+		_ftp_error = FTP_ECOULDNOTALLOCATE;
 		return NULL;
 	}
 
@@ -192,7 +197,7 @@ ftp_connection *ftp_open(char *host, unsigned int port, ftp_security security)
 	c->__features.use_epsv = c->__features.use_mlsd = ftp_btrue;
 	c->_current_features = &(c->__features);
 
-	if ((ftp_error = ftp_i_init(c, host, port, security)) != 0) {
+	if ((_ftp_error = ftp_i_init(c, host, port, security)) != 0) {
 		ftp_close(c);
 		return NULL;
 	}

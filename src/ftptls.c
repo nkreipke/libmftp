@@ -22,7 +22,7 @@
  */
 
 
-#include "ftpfunctions.h"
+#include "ftpinternal.h"
 
 #ifdef FTP_TLS_ENABLED
 

@@ -26,6 +26,9 @@
 #include <stdlib.h>
 #include "libmftp.h"
 #include <string.h>
+#include <time.h>
+#include <pwd.h>
+#include <unistd.h>
 
 void getdata(char *, char *, char *, char *);
 void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char *workingdirectory);
@@ -72,30 +75,33 @@ void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char
 	/*c->_current_features->use_mlsd = ftp_bfalse;*/
 
 	if (!c) {
-		printf("Could not connect. Error: %i\n",ftp_error);
-		if (ftp_error == FTP_ESECURITY) {
+		ftp_error err = ftp_get_error(NULL);
+
+		printf("Could not connect. Error: %i\n", err);
+		if (err == FTP_ESECURITY) {
 			printf("This server does not support a TLS connection. FTP_ESECURITY\n");
 		}
 		goto end;
 	}
 
 	if (ftp_auth(c, user, pw, ftp_btrue) != FTP_OK) {
-		printf("Could not authenticate. Error: %i\n", c->error);
+		printf("Could not authenticate. Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 
 	if (ftp_change_cur_directory(c, workingdirectory) != FTP_OK) {
-		printf("Could not cwd. Error: %i\n", c->error);
+		printf("Could not cwd. Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 
-	if (ftp_reload_cur_directory(c) != FTP_OK) {
-		printf("Could not reload wd. Error: %i\n", c->error);
+	char *current_dir = ftp_get_cur_directory(c);
+	if (!current_dir) {
+		printf("Could not reload wd. Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 
-	if (strcmp(workingdirectory, c->cur_directory) != 0) {
-		printf("Warning: Working dir (%s) does not match ftp dir (%s)! Continue? (y/n)\n",workingdirectory,c->cur_directory);
+	if (strcmp(workingdirectory, current_dir) != 0) {
+		printf("Warning: Working dir (%s) does not match ftp dir (%s)! Continue? (y/n)\n", workingdirectory, current_dir);
 		if (getchar() != 'y') {
 			goto end;
 		}
@@ -108,7 +114,7 @@ void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char
 
 	f = ftp_fopen(c, "testfile.test", FTP_WRITE, 0);
 	if (!f) {
-		printf("Could not fopen to write. Error: %i\n", c->error);
+		printf("Could not fopen to write. Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 
@@ -126,7 +132,7 @@ void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char
 	cl = ftp_contents_of_directory(c, &entry_count);
 
 	if (!cl) {
-		printf("Could not get content listing. Error: %i\n", c->error);
+		printf("Could not get content listing. Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 
@@ -165,7 +171,7 @@ void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char
 
 	size_t srv_size;
 	if (ftp_size(c, "testfile.test", &srv_size) != FTP_OK) {
-		printf("Could not get file size. Error: %i\n", c->error);
+		printf("Could not get file size. Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 
@@ -178,7 +184,7 @@ void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char
 
 	f = ftp_fopen(c, "testfile.test", FTP_READ, 0);
 	if (!f) {
-		printf("Could not fopen to read. Error: %i\n", c->error);
+		printf("Could not fopen to read. Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 
@@ -202,12 +208,12 @@ void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char
 
 	f = ftp_fopen(c, "testfile1.txt", FTP_WRITE, 0);
 	if (!f) {
-		printf("Could not fopen to write 2 (1). Error: %i\n", c->error);
+		printf("Could not fopen to write 2 (1). Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 	g = ftp_fopen(c, "testfile2.txt", FTP_WRITE, 0);
 	if (!g) {
-		printf("Could not fopen to write 2 (2). Error: %i\n", c->error);
+		printf("Could not fopen to write 2 (2). Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 	if (ftp_fwrites(test, f) != test_len) {
@@ -226,11 +232,11 @@ void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char
 
 	size_t srv_size2;
 	if (ftp_size(c, "testfile1.txt", &srv_size) != FTP_OK) {
-		printf("Could not get file size 2 (1). Error: %i\n", c->error);
+		printf("Could not get file size 2 (1). Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 	if (ftp_size(c, "testfile2.txt", &srv_size2) != FTP_OK) {
-		printf("Could not get file size 2 (2). Error: %i\n", c->error);
+		printf("Could not get file size 2 (2). Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 	if (srv_size != test_len || srv_size2 != test_len) {
@@ -241,17 +247,17 @@ void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char
 	//TEST FOLDERS
 
 	if (ftp_create_folder(c, "testfolder") != FTP_OK) {
-		printf("Could not create folder. Error: %i\n", c->error);
+		printf("Could not create folder. Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 
 	if (ftp_move(c, "testfile1.txt", "testfolder/testfile1.txt")) {
-		printf("Could not move file. Error: %i\n", c->error);
+		printf("Could not move file. Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 
 	if (ftp_change_cur_directory(c, "testfolder") != FTP_OK) {
-		printf("Could not cwd 2. Error: %i\n", c->error);
+		printf("Could not cwd 2. Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 
@@ -263,7 +269,7 @@ void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char
 	//TEST DELETE
 
 	if (ftp_delete(c, "testfile1.txt", ftp_bfalse) != FTP_OK) {
-		printf("Could not delete file. Error: %i\n", c->error);
+		printf("Could not delete file. Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 
@@ -273,12 +279,12 @@ void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char
 	}
 
 	if (ftp_change_cur_directory(c, workingdirectory) != FTP_OK) {
-		printf("Could not cwd 3. Error: %i\n", c->error);
+		printf("Could not cwd 3. Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 
 	if (ftp_delete(c, "testfolder", ftp_btrue) != FTP_OK) {
-		printf("Could not delete folder. Error: %i\n", c->error);
+		printf("Could not delete folder. Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 
@@ -288,7 +294,7 @@ void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char
 	}
 
 	if (ftp_delete(c, "testfile.test", ftp_bfalse) != FTP_OK || ftp_delete(c, "testfile2.txt", ftp_bfalse) != FTP_OK) {
-		printf("Could not clean up. Error: %i\n", c->error);
+		printf("Could not clean up. Error: %i\n", ftp_get_error(c));
 		goto end;
 	}
 
@@ -315,7 +321,7 @@ void libmftp_tls_test(char *host, unsigned int port, char *user, char *pw, char 
 	}
 
 	if (ftp_auth(c, user, pw, ftp_btrue) != FTP_OK) {
-		printf("Could not authenticate. Error: %i\n", c->error);
+		printf("Could not authenticate. Error: %i\n", ftp_get_error(c));
 	}
 
 	if (ftp_item_exists(c, "httpdocs", NULL)) {
@@ -325,9 +331,22 @@ void libmftp_tls_test(char *host, unsigned int port, char *user, char *pw, char 
 	ftp_close(c);
 }
 
+char *gethome()
+{
+	char *env = getenv("HOME");
+	if (env)
+		return env;
+
+	struct passwd *pw = getpwuid(getuid());
+	if (pw)
+		return pw->pw_dir;
+
+	return NULL;
+}
+
 /*
  * If you test this stuff 100 times a day like me, you may want to create an libmftplogin file
- * at /usr/libmftp/libmftplogin. The test program will then use the credentials in this file.
+ * at ~/.libmftplogin. The test program will then use the credentials in this file.
  *
  * Format:
  * <hostname>
@@ -338,7 +357,15 @@ void libmftp_tls_test(char *host, unsigned int port, char *user, char *pw, char 
  */
 void getdata(char *user, char *pw, char *workingdir, char *host)
 {
-	FILE *f = fopen("/usr/libmftp/libmftplogin", "r");
+	char *home = gethome();
+	if (!home)
+		goto inp;
+
+	char path[1000];
+	strcpy(path, home);
+	strcat(path, "/.libmftplogin");
+
+	FILE *f = fopen(path, "r");
 	if (!f) {
 		goto inp;
 	}

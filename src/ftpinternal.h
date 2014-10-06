@@ -27,6 +27,11 @@
 
 #include "libmftp.h"
 
+#include <unistd.h>
+#include <pthread.h>
+#include <sys/time.h>
+
+
 #ifdef FTP_VERBOSE
 #define FTP_LOG(...) printf("*** Info: " __VA_ARGS__)
 #define FTP_WARN(...) printf("*** WARNING: " __VA_ARGS__)
@@ -38,6 +43,8 @@
 #endif
 
 #define FTP_INTERNAL_SIGNAL_ERROR 1000
+
+#define FTP_TRIGGER_MAX           10
 
 
 #define ftp_i_free(ptr) do { \
@@ -140,6 +147,70 @@ typedef struct {
 	char *net_addr;*/
 	unsigned int tcp_port;
 } ftp_i_ex_answer;
+
+
+struct _ftp_connection {
+	/* Status of the connection. */
+	ftp_status status;
+
+	/* The current remote directory.
+	 * Call ftp_reload_cur_directory first. */
+	char * cur_directory;
+
+	/* The connection timeout when waiting for a server answer. (60 by default) */
+	unsigned long timeout;
+
+	/* The status number of the latest server answer. */
+	int last_signal;
+
+	/* Error ID */
+	int error;
+
+	/* Sets whether a second connection should automatically be used for file transfers. (true by default)
+	 * This is necessary for background file transfers.
+	 * (Ignored if multiple connections are not allowed) */
+	ftp_bool file_transfer_second_connection:1;
+
+	/* Filters ".", ".." and other items that are neither files nor directories. */
+	ftp_bool content_listing_filter:1;
+
+
+	/* Internal */
+	int _port;
+	int _adr_fam;
+	int _sockfd;
+	int _data_connection;
+	struct ftp_features __features;
+	struct ftp_features * _current_features;
+	int _last_answer_lock_signal;
+	void * _last_answer_buffer;
+	char *_host;
+	char * _dataBuf;
+	unsigned long _dataPointer;
+	pthread_t _input_thread;
+	int _input_trigger_signals[FTP_TRIGGER_MAX];
+	struct timeval _wait_start;
+	char *_mc_user, *_mc_pass;
+	struct _ftp_connection *_parent, *_child;
+	ftp_transfer_type _transfer_type;
+	ftp_bool _internal_error_signal:1;
+	ftp_bool _mc_enabled:1;
+	ftp_bool _temporary:1;
+	ftp_bool _termination_signal:1;
+	ftp_bool _release_input_thread:1;
+	ftp_bool _disable_input_thread:1;
+#ifdef FTP_SERVER_VERBOSE
+	void *verbose_command_buffer;
+#endif
+#ifdef FTP_TLS_ENABLED
+	void *_tls_info;
+	void *_tls_info_dc;
+#endif
+};
+
+
+extern int _ftp_error;
+
 
 FTP_I_BEGIN_DECLS
 

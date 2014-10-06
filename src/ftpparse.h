@@ -35,7 +35,7 @@ NCSA Telnet FTP server. Has LIST = NLST (and bad NLST for directories).
 #ifndef FTPPARSE_H
 #define FTPPARSE_H
 
-#include "ftpfunctions.h"
+#include "ftpinternal.h"
 
 /*
 ftpparse(&fp,buf,len) tries to parse one line of LIST output.

@@ -26,32 +26,48 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include "ftpfunctions.h"
+#include "ftpinternal.h"
 #include "ftpsignals.h"
 #include "ftpcommands.h"
 
-ftp_status ftp_reload_cur_directory(ftp_connection *c)
+ftp_error ftp_connection_get_error(ftp_connection *c)
+{
+	if (!c)
+		return _ftp_error;
+
+	return c->error;
+}
+
+ftp_error ftp_file_get_error(ftp_file *f)
+{
+	if (!f)
+		return FTP_EARGUMENTS;
+
+	return *(f->error);
+}
+
+char *ftp_get_cur_directory(ftp_connection *c)
 {
 	if (!ftp_i_connection_is_ready(c)) {
 		ftp_i_connection_set_error(c, FTP_ENOTREADY);
-		return FTP_ERROR;
+		return NULL;
 	}
 
 	ftp_i_set_input_trigger(c, FTP_SIGNAL_MKDIR_SUCCESS_OR_PWD);
 	c->_last_answer_lock_signal = FTP_SIGNAL_MKDIR_SUCCESS_OR_PWD;
 
 	if (ftp_i_send_command_and_wait_for_triggers(c, FTP_CPWD, NULL, NULL, FTP_EUNEXPECTED, NULL) != FTP_OK)
-		return FTP_ERROR;
+		return NULL;
 
 	int result = ftp_i_set_pwd_information(ftp_i_managed_buffer_cbuf(c->_last_answer_buffer), &c->cur_directory);
 	ftp_i_managed_buffer_free(c->_last_answer_buffer);
 
 	if (result != 0) {
 		ftp_i_connection_set_error(c, result);
-		return FTP_ERROR;
+		return NULL;
 	}
 
-	return FTP_OK;
+	return c->cur_directory;
 }
 
 ftp_status ftp_change_cur_directory(ftp_connection *c, char *path)
@@ -88,7 +104,7 @@ ftp_content_listing *ftp_contents_of_directory(ftp_connection *c, int *items_cou
 
 		if (ftp_i_send_command_and_wait_for_triggers(c,
 			(use_mlsd ? FTP_CMLSD : FTP_CLIST), NULL, NULL, 0, &remote_error) != FTP_OK) {
-			if (remote_error || !use_mlsd) {
+			if (!remote_error || !use_mlsd) {
 				ftp_i_close_data_connection(c);
 				ftp_i_connection_set_error(c, FTP_EUNEXPECTED);
 				return NULL;
@@ -261,6 +277,9 @@ ftp_file *ftp_fopen(ftp_connection *c, char *filenm, ftp_activity activity, unsi
 		free(f);
 		return NULL;
 	}
+
+	fc->_internal_error_signal = ftp_bfalse;
+
 	return f;
 }
 
@@ -285,7 +304,14 @@ size_t ftp_fwrite(const void *buf, size_t size, size_t count, ftp_file *f)
 		*(f->error) = FTP_EARGUMENTS;
 		return 0;
 	}
-	//upload chunks
+
+	/* Every unhandled error signal coming from the server during a file
+	 * transfer will be interpreted as a transfer error. */
+	if (f->c->_internal_error_signal) {
+		*(f->error) = FTP_EUNEXPECTED;
+		return 0;
+	}
+
 	while (data_count < count) {
 		ssize_t r = ftp_i_write(f->c, 1, buf + (data_count * size), size);
 		if (r < 0) {
@@ -309,7 +335,14 @@ size_t ftp_fread(void *buf, size_t size, size_t count, ftp_file *f)
 		*(f->error) = FTP_EARGUMENTS;
 		return 0;
 	}
-	//download chunks
+
+	/* Every unhandled error signal coming from the server during a file
+	 * transfer will be interpreted as a transfer error. */
+	if (f->c->_internal_error_signal) {
+		*(f->error) = FTP_EUNEXPECTED;
+		return 0;
+	}
+
 	while (data_count < count) {
 		ssize_t r = ftp_i_read(f->c, 1, buf + (data_count * size), size);
 		if (r < 0) {

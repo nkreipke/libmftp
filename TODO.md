@@ -3,3 +3,4 @@
 * MDTM implementation is missing (```ftp_modification_date(...)```)
 * TLS-enabled connection sometimes loses a few bytes at the end when writing to a file. This has to be looked into.
 * ```ftptls.c``` is still a mess and needs some clean-up.
+* Similar to ```_current_features```, multiple simultaneous connections should only have one single error variable, so having a separate function to retrieve file related errors is not needed anymore.
