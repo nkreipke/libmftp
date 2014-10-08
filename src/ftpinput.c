@@ -51,6 +51,8 @@ void* ftp_i_input_thread(void *connection)
 
 	ftp_i_managed_buffer *message = ftp_i_managed_buffer_new();
 
+	pthread_mutex_t *locked_mutex = NULL;
+
 	while (!c->_release_input_thread) {
 		char current;
 		if (ftp_i_read(c, 0, &current, 1) == 1) {
@@ -67,13 +69,28 @@ void* ftp_i_input_thread(void *connection)
 					ftp_i_connection_set_error(c, FTP_EUNEXPECTED);
 					break;
 				}
-				if (ftp_i_process_input(c, message))
+
+				// Now lock ourselves down while we process this message.
+				if (pthread_mutex_lock(&c->_input_thread_processing_signal) != 0) {
+					FTP_ERR("Could not lock signal processing mutex.\n");
+					ftp_i_connection_set_error(c, FTP_ETHREAD);
+					break;
+				}
+				locked_mutex = &c->_input_thread_processing_signal;
+
+				if (ftp_i_process_input(c, message)) {
 					// Processed message requires this input thread to terminate in order to
 					// notify the waiting main thread.
 					break;
+				}
+
 				// Reset message buffer.
 				ftp_i_managed_buffer_free(message);
 				message = ftp_i_managed_buffer_new();
+
+				locked_mutex = NULL;
+				pthread_mutex_unlock(&c->_input_thread_processing_signal);
+
 			} else {
 				if (ftp_i_managed_buffer_append(message, (void *)&current, 1) != FTP_OK) {
 					FTP_ERR("Allocation error.\n");
@@ -106,6 +123,10 @@ void* ftp_i_input_thread(void *connection)
 
 	ftp_i_managed_buffer_free(message);
 	c->_input_thread = 0;
+
+	if (locked_mutex)
+		pthread_mutex_unlock(locked_mutex);
+
 	return NULL;
 }
 
@@ -193,6 +214,11 @@ int ftp_i_establish_input_thread(ftp_connection *c)
  */
 ftp_status ftp_i_wait_for_triggers(ftp_connection *c)
 {
+	if (c->status != FTP_UP && c->status != FTP_CONNECTING) {
+		ftp_i_connection_set_error(c, FTP_ENOTREADY);
+		return FTP_ERROR;
+	}
+
 	// The input thread will automatically terminate when an input trigger
 	// is reached.
 	c->status = FTP_WAITING;
@@ -209,15 +235,104 @@ ftp_status ftp_i_wait_for_triggers(ftp_connection *c)
 	if (c->error != 0)
 		// An error occurred while waiting for the trigger (timeout, socket error, ...)
 		result = FTP_ERROR;
+
+	ftp_i_reset_triggers(c);
+	c->_last_answer_lock_signal = SIGN_NOTHING;
+
 	if (!c->_disable_input_thread && ftp_i_establish_input_thread(c) != 0) {
 		FTP_ERR("Could not establish input thread.\n");
 		ftp_i_connection_set_error(c, FTP_ETHREAD);
 		result = FTP_ERROR;
 	}
 
+	c->status = FTP_UP;
+	return result;
+}
+
+/*
+ * Starts waiting asynchronously for a trigger or an error signaĺ.
+ */
+ftp_status ftp_i_start_waiting_async_for_triggers(ftp_connection *c)
+{
+	if (c->status != FTP_UP) {
+		ftp_i_connection_set_error(c, FTP_ENOTREADY);
+		return FTP_ERROR;
+	}
+
+	c->status = FTP_ASYNCWAITING;
+	ftp_i_connection_set_error(c, 0);
+
+	return FTP_OK;
+}
+
+/*
+ * When asynchronously waiting for triggers, this function returns whether a trigger
+ * or error signal has been received.
+ */
+ftp_bool ftp_i_reached_trigger(ftp_connection *c)
+{
+	if (c->status != FTP_ASYNCWAITING)
+		return ftp_bfalse;
+
+	// Waiting asynchronously uses the same technique as the synchronous wait:
+	// The input thread automatically terminates when a trigger is reached. While
+	// using pthread_join in the synchronous version, the async version just checks
+	// whether the input thread is still running.
+	return !(c->_input_thread);
+}
+
+/*
+ * Ends waiting asynchronously for a trigger or an error signal. If abort is set to
+ * ftp_bfalse and a trigger was not yet reached, this function will behave like
+ * ftp_i_wait_for_triggers.
+ */
+ftp_status ftp_i_end_waiting_async_for_triggers(ftp_connection *c, ftp_bool abort)
+{
+	if (c->status != FTP_ASYNCWAITING)
+		return FTP_OK;
+
+	if (!ftp_i_reached_trigger(c) && !abort) {
+		// Wait synchronously for trigger. We have to set the connection status to
+		// FTP_UP, otherwise ftp_i_wait_for_triggers fails with FTP_ENOTREADY.
+
+		c->status = FTP_UP;
+		return ftp_i_wait_for_triggers(c);
+	}
+
+	// Do not wait for any trigger.
+
+	// When using the async functions, we have to be careful to avoid race conditions.
+	// Locking _input_thread_processing_signal here makes sure our input thread is
+	// not currently processing a server message.
+	// After the mutex is locked, the input thread can be in two states:
+	//  * No trigger was reached -> input thread is still running
+	//  * Trigger was reached -> input thread is terminated, _input_thread is 0
+	// While the mutex is locked, the input thread is unable to terminate itself.
+
+	if (pthread_mutex_lock(&c->_input_thread_processing_signal) != 0) {
+		ftp_i_connection_set_error(c, FTP_ETHREAD);
+		return FTP_ERROR;
+	}
+
+	ftp_status result = FTP_OK;
+
 	ftp_i_reset_triggers(c);
 	c->_last_answer_lock_signal = SIGN_NOTHING;
-	c->status = FTP_UP;
+
+	if (!c->_input_thread &&
+			!c->_disable_input_thread &&
+			ftp_i_establish_input_thread(c) != 0) {
+
+		FTP_ERR("Could not establish input thread.\n");
+		ftp_i_connection_set_error(c, FTP_ETHREAD);
+		result = FTP_ERROR;
+
+	} else {
+		c->status = FTP_UP;
+	}
+
+	pthread_mutex_unlock(&c->_input_thread_processing_signal);
+
 	return result;
 }
 

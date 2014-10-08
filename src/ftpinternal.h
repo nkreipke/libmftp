@@ -188,6 +188,7 @@ struct _ftp_connection {
 	char * _dataBuf;
 	unsigned long _dataPointer;
 	pthread_t _input_thread;
+	pthread_mutex_t _input_thread_processing_signal;
 	int _input_trigger_signals[FTP_TRIGGER_MAX];
 	struct timeval _wait_start;
 	char *_mc_user, *_mc_pass;
@@ -229,6 +230,9 @@ int                   ftp_i_establish_input_thread(ftp_connection *);
 int                   ftp_i_release_input_thread(ftp_connection *);
 void                  ftp_i_set_input_trigger(ftp_connection *, int);
 ftp_status            ftp_i_wait_for_triggers(ftp_connection *);
+ftp_status            ftp_i_start_waiting_async_for_triggers(ftp_connection *);
+ftp_bool              ftp_i_reached_trigger(ftp_connection *);
+ftp_status            ftp_i_end_waiting_async_for_triggers(ftp_connection *, ftp_bool);
 
 /*                    Signal Processing */
 extern int            ftp_i_signal_is_error(int);
