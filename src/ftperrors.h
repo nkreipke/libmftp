@@ -48,8 +48,9 @@ typedef unsigned char ftp_error;
 #define FTP_ENOTPERMITTED         102
 #define FTP_ENOTFOUND             103
 #define FTP_ENOTFOUND_OR_NOTEMPTY 104
-#define FTP_EINVALID              105
-#define FTP_ESERVERCAPABILITIES   106
+#define FTP_ENOTGIVEN             105
+#define FTP_EINVALID              106
+#define FTP_ESERVERCAPABILITIES   107
 
 #define FTP_EALREADY              110
 #define FTP_EARGUMENTS            112

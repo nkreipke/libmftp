@@ -197,7 +197,7 @@ size_t ftp_fwrite(const void *, size_t, size_t, ftp_file *);
 #define ftp_feof(file) (file->eof)
 
 /* Closes a read/write stream. */
-void ftp_fclose(ftp_file *);
+ftp_status ftp_fclose(ftp_file *);
 
 /* Delete a file or an (empty) folder: ftp_delete(ftpConnection, filename, is_folder) */
 ftp_status ftp_delete(ftp_connection *, char *, ftp_bool);

@@ -144,40 +144,39 @@ int ftp_i_tls_init_data_connection(ftp_connection *c)
 
 #endif
 
-int ftp_i_init(ftp_connection *c, char *host, unsigned int port, ftp_security security)
+ftp_error ftp_i_init(ftp_connection *c, char *host, unsigned int port, ftp_security security)
 {
-	if (ftp_connect(c, host, port) == 0) {
-		c->status = FTP_CONNECTING;
+	if (ftp_connect(c, host, port) != 0)
+		return FTP_ECONNECTION;
 
-		ftp_i_set_input_trigger(c, FTP_SIGNAL_SERVICE_READY);
+	c->status = FTP_CONNECTING;
 
-		if (ftp_i_establish_input_thread(c) != 0)
-			return FTP_ETHREAD;
+	ftp_i_set_input_trigger(c, FTP_SIGNAL_SERVICE_READY);
 
-		if (ftp_i_wait_for_triggers(c) != FTP_OK)
-			return c->error;
+	if (ftp_i_establish_input_thread(c) != 0)
+		return FTP_ETHREAD;
 
-		if (ftp_i_last_signal_was_error(c))
-			return FTP_ENOSERVICE;
+	if (ftp_i_wait_for_triggers(c) != FTP_OK)
+		return c->error;
+
+	if (ftp_i_last_signal_was_error(c))
+		return FTP_ENOSERVICE;
 
 #ifdef FTP_TLS_ENABLED
-		if (security != ftp_security_none) {
-			int tls = ftp_i_tls_init(c);
+	if (security != ftp_security_none) {
+		int tls = ftp_i_tls_init(c);
 
-			if (tls == FTP_TLS_ERROR)
-				return c->error;
+		if (tls == FTP_TLS_ERROR)
+			return c->error;
 
-			if (tls == FTP_TLS_NOTSUPPORTED && security == ftp_security_always)
-				return FTP_ESECURITY;
-		}
+		if (tls == FTP_TLS_NOTSUPPORTED && security == ftp_security_always)
+			return FTP_ESECURITY;
+	}
 #endif
 
-		c->status = FTP_UP;
+	c->status = FTP_UP;
 
-		return 0;
-	} else {
-		return FTP_ECONNECTION;
-	}
+	return 0;
 }
 
 ftp_connection *ftp_open(char *host, unsigned int port, ftp_security security)
@@ -196,6 +195,8 @@ ftp_connection *ftp_open(char *host, unsigned int port, ftp_security security)
 	c->content_listing_filter = ftp_btrue;
 	c->__features.use_epsv = c->__features.use_mlsd = ftp_btrue;
 	c->_current_features = &(c->__features);
+
+	pthread_mutex_init(&c->_input_thread_processing_signal, NULL);
 
 	if ((_ftp_error = ftp_i_init(c, host, port, security)) != 0) {
 		ftp_close(c);

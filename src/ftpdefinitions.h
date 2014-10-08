@@ -32,6 +32,7 @@
 #define FTP_UP               1
 #define FTP_CONNECTING       2
 #define FTP_WAITING          3
+#define FTP_ASYNCWAITING     4
 
 #define FTP_STANDARD_PORT    21
 

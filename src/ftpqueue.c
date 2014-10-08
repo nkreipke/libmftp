@@ -135,6 +135,7 @@ ftp_connection *ftp_i_dequeue_usable_connection(ftp_connection *c, ftp_bool no_m
 
 void ftp_i_mark_as_unused(ftp_connection *c)
 {
+	// Our main connection is never marked as unused.
 	if (!c->_temporary)
 		return;
 

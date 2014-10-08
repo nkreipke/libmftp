@@ -179,120 +179,132 @@ ftp_bool ftp_item_exists_in_content_listing(ftp_content_listing *c, char *file_n
 
 ftp_file *ftp_fopen(ftp_connection *c, char *filenm, ftp_activity activity, unsigned long startpos)
 {
-	if (activity != FTP_READ && activity != FTP_WRITE) {
+	if ((activity != FTP_READ && activity != FTP_WRITE) ||
+		(activity == FTP_READ && startpos == FTP_APPEND)) {
 		c->error = FTP_EARGUMENTS;
 		return NULL;
 	}
-	if (activity == FTP_READ && startpos == FTP_APPEND) {
-		c->error = FTP_EARGUMENTS;
-		return NULL;
-	}
-	if (!ftp_i_connection_is_ready(c)) {
-		ftp_i_connection_set_error(c, FTP_ENOTREADY);
-		return NULL;
-	}
-	ftp_file *f = (ftp_file*)malloc(sizeof(ftp_file));
-	if (!f) {
-		c->error = FTP_ECOULDNOTALLOCATE;
-		return NULL;
-	}
-	f->eof = ftp_bfalse;
-	f->parent = NULL;
-	f->activity = activity;
 
+	// If this connection is not ready, we try to get a usable temporary connection from the queue.
 	ftp_connection *fc;
 	if ((fc = ftp_i_dequeue_usable_connection(c, c->file_transfer_second_connection, ftp_btrue)) == NULL) {
 		c->error = FTP_ENOTREADY;
-		ftp_i_free(f);
 		return NULL;
 	}
-
-	f->c = fc;
-	f->error = &(fc->error);
 
 	if (ftp_i_set_transfer_type(fc, ftp_tt_binary) != FTP_OK ||
 		ftp_i_establish_data_connection(fc) != FTP_OK) {
-		if (fc != c) {
+
+		//TODO: This is not necessary anymore once I unify the error variables.
+		if (fc != c)
 			c->error = fc->error;
-			ftp_i_mark_as_unused(fc);
-		}
-		ftp_i_free(f);
+
+		ftp_i_mark_as_unused(fc);
 		return NULL;
 	}
 
-	fc->_internal_error_signal = ftp_bfalse;
-	if (activity == FTP_WRITE) {
-		char command[500];
-		if (startpos == FTP_APPEND) {
-			sprintf(command, FTP_CAPPE " %s" FTP_CENDL,filenm);
-		} else {
-			sprintf(command, FTP_CSTOR " %s" FTP_CENDL,filenm);
-			if (startpos > 0) {
-				char retrcmd[100];
-				sprintf(retrcmd, FTP_CREST " %li" FTP_CENDL, startpos);
-				ftp_send(fc, retrcmd);
-			}
-		}
-		ftp_i_set_input_trigger(fc, FTP_SIGNAL_ABOUT_TO_OPEN_DATA_CONNECTION);
-		ftp_i_set_input_trigger(fc, FTP_SIGNAL_DATA_CONNECTION_OPEN_STARTING_TRANSFER);
-		ftp_send(fc, command);
-		if (ftp_i_wait_for_triggers(fc) != FTP_OK) {
-			c->error = fc->error;
-			ftp_i_close_data_connection(fc);
-			free(f);
-			return NULL;
-		}
-		if (ftp_i_last_signal_was_error(fc) || fc->_internal_error_signal) {
-			c->error = fc->last_signal == FTP_SIGNAL_REQUESTED_ACTION_ABORTED ? FTP_ENOTPERMITTED : FTP_EUNEXPECTED;
-			ftp_i_close_data_connection(fc);
-			free(f);
-			return NULL;
-		}
-	} else {
-		if (startpos != 0) {
-			char retrcmd[100];
-			sprintf(retrcmd, FTP_CREST " %li" FTP_CENDL, startpos);
-			ftp_send(fc, retrcmd);
-		}
-		char command[500];
-		sprintf(command, FTP_CRETR " %s" FTP_CENDL,filenm);
-		ftp_i_set_input_trigger(fc, FTP_SIGNAL_ABOUT_TO_OPEN_DATA_CONNECTION);
-		ftp_i_set_input_trigger(fc, FTP_SIGNAL_DATA_CONNECTION_OPEN_STARTING_TRANSFER);
-		ftp_send(fc, command);
-		if (ftp_i_wait_for_triggers(fc) != FTP_OK) {
-			c->error = fc->error;
-			ftp_i_close_data_connection(fc);
-			free(f);
-			return NULL;
-		}
-		if (ftp_i_last_signal_was_error(fc) || fc->_internal_error_signal) {
-			c->error = fc->last_signal == FTP_SIGNAL_REQUESTED_ACTION_ABORTED ? FTP_ENOTPERMITTED : FTP_EUNEXPECTED;
-			ftp_i_close_data_connection(fc);
+	ftp_file *f = (ftp_file*)malloc(sizeof(ftp_file));
+	if (!f) {
+		c->error = FTP_ECOULDNOTALLOCATE;
+		ftp_i_mark_as_unused(fc);
+		return NULL;
+	}
+
+	f->eof = ftp_bfalse;
+	f->parent = NULL;
+	f->activity = activity;
+	f->c = fc;
+	f->error = &(fc->error);
+
+	if (startpos > 0 && startpos != FTP_APPEND) {
+		char retrcmd[100];
+		sprintf(retrcmd, FTP_CREST " %li" FTP_CENDL, startpos);
+
+		if (ftp_send(fc, retrcmd) != FTP_OK) {
+			ftp_i_mark_as_unused(fc);
 			free(f);
 			return NULL;
 		}
 	}
-	if (ftp_i_prepare_data_connection(fc) != FTP_OK) {
+
+	char *command;
+	if (activity == FTP_WRITE)
+		command = startpos == FTP_APPEND ? FTP_CAPPE : FTP_CSTOR;
+	else
+		command = FTP_CRETR;
+
+	//FIXME: Maybe unnecessary once ftp_i_wait_for_triggers reports back the exact trigger signal?
+	fc->_internal_error_signal = ftp_bfalse;
+
+	ftp_i_set_input_trigger(fc, FTP_SIGNAL_ABOUT_TO_OPEN_DATA_CONNECTION);
+	ftp_i_set_input_trigger(fc, FTP_SIGNAL_DATA_CONNECTION_OPEN_STARTING_TRANSFER);
+
+	if (ftp_send(fc, command) != FTP_OK ||
+		ftp_send(fc, " ") != FTP_OK ||
+		ftp_send(fc, filenm) != FTP_OK ||
+		ftp_send(fc, FTP_CENDL) != FTP_OK ||
+		ftp_i_wait_for_triggers(fc) != FTP_OK ||
+		ftp_i_last_signal_was_error(fc) ||
+		fc->_internal_error_signal ||
+		ftp_i_prepare_data_connection(fc) != FTP_OK) {
+
+		//TODO: This is not necessary anymore once I unify the error variables.
+		if (fc != c)
+			c->error = fc->error;
+
+		if (fc->last_signal == FTP_SIGNAL_REQUESTED_ACTION_ABORTED)
+			ftp_i_connection_set_error(c, FTP_ENOTPERMITTED);
+
 		ftp_i_close_data_connection(fc);
+		ftp_i_mark_as_unused(fc);
 		free(f);
 		return NULL;
 	}
 
 	fc->_internal_error_signal = ftp_bfalse;
 
+	// We set the triggers for transfer completion now and start waiting asynchronously
+	// for them. This way, even though we are not actively waiting (as in blocking the thread),
+	// we will get potential error messages from the server and can process them later.
+	ftp_i_set_input_trigger(fc, FTP_SIGNAL_TRANSFER_COMPLETE);
+	ftp_i_start_waiting_async_for_triggers(fc);
+
 	return f;
 }
 
-void ftp_fclose(ftp_file *file)
+ftp_status ftp_fclose(ftp_file *file)
 {
 	if (!file)
-		return;
+		return FTP_ERROR;
+
 	if (file->c->_data_connection != 0)
 		ftp_i_close_data_connection(file->c);
+
+	ftp_status result = FTP_OK;
+
+	// Wait for the server to send the transfer completion signal.
+	if (ftp_i_end_waiting_async_for_triggers(file->c, ftp_bfalse) == FTP_OK &&
+		ftp_i_last_signal_was_error(file->c)) {
+
+		result = FTP_ERROR;
+		ftp_i_connection_set_error(file->c, FTP_EUNEXPECTED);
+	}
 
 	ftp_i_mark_as_unused(file->c);
 
 	free(file);
+
+	return result;
+}
+
+ftp_status ftp_i_process_file_transfer_errors(ftp_file *f)
+{
+	if (ftp_i_reached_trigger(f->c) && ftp_i_last_signal_was_error(f->c)) {
+		*(f->error) = FTP_EUNEXPECTED;
+		return FTP_ERROR;
+	}
+
+	return FTP_OK;
 }
 
 size_t ftp_fwrite(const void *buf, size_t size, size_t count, ftp_file *f)
@@ -305,12 +317,8 @@ size_t ftp_fwrite(const void *buf, size_t size, size_t count, ftp_file *f)
 		return 0;
 	}
 
-	/* Every unhandled error signal coming from the server during a file
-	 * transfer will be interpreted as a transfer error. */
-	if (f->c->_internal_error_signal) {
-		*(f->error) = FTP_EUNEXPECTED;
+	if (ftp_i_process_file_transfer_errors(f) != FTP_OK)
 		return 0;
-	}
 
 	while (data_count < count) {
 		ssize_t r = ftp_i_write(f->c, 1, buf + (data_count * size), size);
@@ -336,12 +344,8 @@ size_t ftp_fread(void *buf, size_t size, size_t count, ftp_file *f)
 		return 0;
 	}
 
-	/* Every unhandled error signal coming from the server during a file
-	 * transfer will be interpreted as a transfer error. */
-	if (f->c->_internal_error_signal) {
-		*(f->error) = FTP_EUNEXPECTED;
+	if (ftp_i_process_file_transfer_errors(f) != FTP_OK)
 		return 0;
-	}
 
 	while (data_count < count) {
 		ssize_t r = ftp_i_read(f->c, 1, buf + (data_count * size), size);
@@ -380,9 +384,19 @@ ftp_status ftp_size_legacy(ftp_connection *c, char *filenm, size_t *size)
 		return FTP_ERROR;
 	}
 
-	*size = current->facts.size;
+	ftp_status result = FTP_OK;
+
+	if (current->facts.given.size) {
+		*size = current->facts.size;
+	} else {
+		*size = 0;
+
+		ftp_i_connection_set_error(c, FTP_ENOTGIVEN);
+		result = FTP_ERROR;
+	}
+
 	ftp_free(content);
-	return FTP_OK;
+	return result;
 }
 
 ftp_status ftp_size(ftp_connection *c, char *filenm, size_t *size)
@@ -510,7 +524,9 @@ ftp_status ftp_noop(ftp_connection *c, ftp_bool wfresponse)
 
 	if (wfresponse)
 		ftp_i_set_input_trigger(c, FTP_SIGNAL_COMMAND_OKAY);
+
 	ftp_send(c, FTP_CNOOP FTP_CENDL);
+
 	if (wfresponse) {
 		if (ftp_i_wait_for_triggers(c) != FTP_OK)
 			return FTP_ERROR;
@@ -519,5 +535,6 @@ ftp_status ftp_noop(ftp_connection *c, ftp_bool wfresponse)
 			return FTP_ERROR;
 		}
 	}
+
 	return FTP_OK;
 }

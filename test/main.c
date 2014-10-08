@@ -31,7 +31,7 @@
 #include <unistd.h>
 
 void getdata(char *, char *, char *, char *);
-void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char *workingdirectory);
+int libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char *workingdirectory);
 void libmftp_tls_test(char *host, unsigned int port, char *user, char *pw, char *workingdirectory);
 
 
@@ -58,18 +58,19 @@ int main (int argc, const char * argv[])
 	}
 
 
-	libmftp_main_test(host, port, user, pw, workingdir);
+	return libmftp_main_test(host, port, user, pw, workingdir);
 
 	return 0;
 }
 
-void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char *workingdirectory)
+int libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char *workingdirectory)
 {
 	int success = 0;
 	ftp_file *f = NULL, *g = NULL;
 	ftp_content_listing *cl = NULL, *cl2 = NULL;
 	ftp_date d;
 	char *buf = NULL;
+	ftp_status fclose_status_1, fclose_status_2;
 	ftp_connection *c = ftp_open(host, port, tls == 0 ? ftp_security_none : ftp_security_always);
 
 	/*c->_current_features->use_mlsd = ftp_bfalse;*/
@@ -111,7 +112,6 @@ void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char
 	size_t test_len = strlen(test);
 
 	//TEST UPLOAD 1
-
 	f = ftp_fopen(c, "testfile.test", FTP_WRITE, 0);
 	if (!f) {
 		printf("Could not fopen to write. Error: %i\n", ftp_get_error(c));
@@ -123,8 +123,13 @@ void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char
 		goto end;
 	}
 
-	ftp_fclose(f);
+	fclose_status_1 = ftp_fclose(f);
 	f = NULL;
+	if (fclose_status_1 != FTP_OK)
+	{
+		printf("Failed writing file. Error: %i\n", ftp_get_error(c));
+		goto end;
+	}
 
 	//TEST CONTENT LISTING
 
@@ -195,8 +200,14 @@ void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char
 		goto end;
 	}
 
-	ftp_fclose(f);
+	fclose_status_1 = ftp_fclose(f);
 	f = NULL;
+
+	if (fclose_status_1 != FTP_OK)
+	{
+		printf("Failed writing file. Error: %i\n", ftp_get_error(c));
+		goto end;
+	}
 
 	*(buf+srv_size) = '\0';
 	if (strcmp(test, buf) != 0) {
@@ -224,9 +235,14 @@ void libmftp_main_test(char *host, unsigned int port, char *user, char *pw, char
 		printf("Could not write test string 2 (2). Error: %i\n", *(g->error));
 		goto end;
 	}
-	ftp_fclose(f);
-	ftp_fclose(g);
+	fclose_status_1 = ftp_fclose(f);
+	fclose_status_2 = ftp_fclose(g);
 	f = g = NULL;
+	if (fclose_status_1 != FTP_OK || fclose_status_2 != FTP_OK)
+	{
+		printf("Failed writing file. Error: %i\n", ftp_get_error(c));
+		goto end;
+	}
 
 	//TEST SIZE 2
 
@@ -305,11 +321,14 @@ end:
 	if (g) ftp_fclose(g);
 	if (c) ftp_close(c);
 	if (buf) free(buf);
+
 	if (!success) {
 		printf("Test was NOT successful. :-(\n");
-	} else {
-		printf("Test was successful! :-)\n");
+		return -1;
 	}
+
+	printf("Test was successful! :-)\n");
+	return 0;
 }
 
 void libmftp_tls_test(char *host, unsigned int port, char *user, char *pw, char *workingdirectory)
